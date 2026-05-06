@@ -1,10 +1,28 @@
 # MCP Shield
 
+[![Portfolio CI](https://github.com/ramgolladi1503-sys/MCP/actions/workflows/portfolio-ci.yml/badge.svg)](https://github.com/ramgolladi1503-sys/MCP/actions/workflows/portfolio-ci.yml)
+
 **Runtime security gateway for MCP tools and AI agents.**
 
 MCP Shield is a local-first gateway that sits between AI agents and MCP servers. It scans, audits, explains, approves, or blocks risky tool calls before execution.
 
 This is not positioned as a toy demo. The project is designed as a production-minded MVP for companies adopting agentic AI, MCP servers, tool calling, and internal AI automation.
+
+---
+
+## Portfolio assets
+
+- [Architecture image](docs/architecture/mcp-shield-architecture.svg)
+- [AI Security one-pager](docs/one-pagers/ai-security-mcp-shield.md)
+- [Test reports guide](docs/test-reports/README.md)
+- [GitHub profile README template](docs/github-profile-readme-template.md)
+- LinkedIn: https://www.linkedin.com/in/ram-golladi
+
+---
+
+## Architecture image
+
+![MCP Shield architecture](docs/architecture/mcp-shield-architecture.svg)
 
 ---
 
@@ -175,6 +193,8 @@ rules:
 - Regression tests for known false positives.
 - End-to-end tests for audit-only, strict, block, explain, and rollback modes.
 
+See: [Test reports guide](docs/test-reports/README.md)
+
 ---
 
 ## How to run locally
@@ -208,7 +228,7 @@ mcp-shield rollback
 
 ## Screenshots / demo
 
-- Screenshots: not added yet.
+- Screenshots: architecture image added.
 - Demo video: not recorded yet.
 
 Planned demo:
