@@ -44,13 +44,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Enable pnpm
+        run: corepack enable
 
       - name: Install test dependencies
-        run: npm install --no-audit --no-fund
+        run: pnpm install --no-frozen-lockfile
 
       - name: Run real MCP unit and contract tests
-        run: npx vitest run tests/unit/policy-engine.test.ts tests/unit/jsonrpc-contract.test.ts tests/unit/policy-parser-audit.test.ts --reporter=verbose
+        run: pnpm exec vitest run tests/unit/policy-engine.test.ts tests/unit/jsonrpc-contract.test.ts tests/unit/policy-parser-audit.test.ts --reporter=verbose
 
       - name: Generate portfolio test report
         run: |
