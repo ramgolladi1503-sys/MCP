@@ -2,30 +2,38 @@ name: CI
 
 on:
   pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   build-test:
+    name: MCP Shield MVP quality gate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
+
+      - name: Enable pnpm with Corepack
+        run: corepack enable
+
+      - name: Print tool versions
+        run: |
+          node --version
+          corepack --version
+          pnpm --version
 
       - name: Install
-        run: pnpm install --frozen-lockfile=false
+        run: pnpm install --no-frozen-lockfile
 
       - name: Typecheck
         run: pnpm typecheck
@@ -43,7 +51,14 @@ jobs:
         run: pnpm test:integration
 
       - name: Scanner smoke test
-        run: pnpm --filter @mcp-shield/cli dev -- scan examples/mcp-configs/unsafe-demo.json || test $? -eq 2
+        run: |
+          set +e
+          pnpm --filter @mcp-shield/cli dev -- scan examples/mcp-configs/unsafe-demo.json
+          code=$?
+          if [ "$code" -ne 2 ]; then
+            echo "Expected scanner to exit 2 for unsafe-demo.json, got $code"
+            exit 1
+          fi
 
       - name: Policy smoke test
         run: pnpm --filter @mcp-shield/cli dev -- policy check examples/policies/coding-agent.yaml
