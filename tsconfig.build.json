@@ -1,0 +1,12 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/shared" },
+    { "path": "./packages/policy" },
+    { "path": "./packages/scanner" },
+    { "path": "./packages/audit" },
+    { "path": "./packages/gateway" },
+    { "path": "./packages/config-adapter" },
+    { "path": "./packages/cli" }
+  ]
+}
