@@ -2,6 +2,8 @@
 
 import { readFile } from "node:fs/promises";
 import { explainAuditEvent, formatReplaySummary, parseAuditJsonl, replayAuditEvents } from "@mcp-shield/audit";
+import { formatConfigStatus, getConfigStatus, initProtectedConfig, restoreLatestBackup } from "@mcp-shield/config-adapter";
+import type { SupportedMcpClient } from "@mcp-shield/config-adapter";
 import { startStdioGateway } from "@mcp-shield/gateway";
 import { formatPolicyCheck, loadPolicyFromYaml } from "@mcp-shield/policy";
 import type { RuntimeMode } from "@mcp-shield/shared";
@@ -19,6 +21,7 @@ const commands: Record<string, string> = {
   replay: "Summarize a JSONL audit file",
   rollback: "Restore the previous MCP client config",
   disable: "Emergency restore and stop protected config usage",
+  status: "Show MCP Shield config protection status",
   policy: "Check or test policy files"
 };
 
@@ -53,16 +56,27 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "init") {
+    await runInit(process.argv.slice(3));
+    return;
+  }
+
+  if (command === "status") {
+    await runStatus(process.argv.slice(3));
+    return;
+  }
+
+  if (command === "rollback" || command === "disable") {
+    await runRollback(process.argv.slice(3), command);
+    return;
+  }
+
   if (!Object.hasOwn(commands, command)) {
     console.error(`Unknown command: ${command}`);
     printHelp();
     process.exitCode = 1;
     return;
   }
-
-  console.error(`Command '${command}' is planned but not implemented in this feature block yet.`);
-  console.error("Scanner, policy, audit, and gateway commands are implemented first. Config adapter and demo come next.");
-  process.exitCode = 2;
 }
 
 async function runScan(args: readonly string[]): Promise<void> {
@@ -194,6 +208,28 @@ async function runGateway(args: readonly string[]): Promise<void> {
   });
 }
 
+async function runInit(args: readonly string[]): Promise<void> {
+  const client = parseClient(getOption(args, "--client") ?? "custom");
+  const configPath = getOption(args, "--config") ?? undefined;
+  const policyPath = getOption(args, "--policy") ?? "examples/policies/coding-agent.yaml";
+  const mode = parseMode(getOption(args, "--mode") ?? "balanced");
+  const plan = await initProtectedConfig({ client, configPath, policyPath, mode });
+  process.stdout.write(`Protected ${plan.operations.length} MCP server(s).\nBackup: ${plan.backupPath}\nMapping: ${plan.mappingPath}\n`);
+}
+
+async function runStatus(args: readonly string[]): Promise<void> {
+  const client = parseClient(getOption(args, "--client") ?? "custom");
+  const configPath = getOption(args, "--config") ?? undefined;
+  process.stdout.write(`${formatConfigStatus(await getConfigStatus(client, configPath))}\n`);
+}
+
+async function runRollback(args: readonly string[], action: "rollback" | "disable"): Promise<void> {
+  const client = parseClient(getOption(args, "--client") ?? "custom");
+  const configPath = getOption(args, "--config") ?? undefined;
+  const restored = await restoreLatestBackup(client, configPath);
+  process.stdout.write(`${action === "disable" ? "Disabled protection and restored" : "Restored"}: ${restored}\n`);
+}
+
 function getOption(args: readonly string[], name: string): string | null {
   const index = args.indexOf(name);
   if (index === -1) {
@@ -211,12 +247,20 @@ function parseMode(value: string): RuntimeMode {
   throw new Error(`Invalid mode '${value}'. Use audit-only, balanced, or strict.`);
 }
 
+function parseClient(value: string): SupportedMcpClient {
+  if (value === "claude-desktop" || value === "cursor" || value === "custom") {
+    return value;
+  }
+
+  throw new Error(`Invalid client '${value}'. Use claude-desktop, cursor, or custom.`);
+}
+
 function printHelp(): void {
   const rows = Object.entries(commands)
     .map(([name, description]) => `  ${name.padEnd(10)} ${description}`)
     .join("\n");
 
-  process.stdout.write(`MCP Shield\n\nUsage:\n  mcp-shield <command> [options]\n\nCommands:\n${rows}\n\nExamples:\n  mcp-shield scan ./mcp.json\n  mcp-shield scan ./mcp.json --json\n  mcp-shield policy check ./coding-agent.yaml\n  mcp-shield gateway --policy ./coding-agent.yaml --mode strict -- node ./server.js\n  mcp-shield replay .mcp-shield/audit.jsonl\n  mcp-shield explain .mcp-shield/audit.jsonl evt_123\n`);
+  process.stdout.write(`MCP Shield\n\nUsage:\n  mcp-shield <command> [options]\n\nCommands:\n${rows}\n\nExamples:\n  mcp-shield scan ./mcp.json\n  mcp-shield scan ./mcp.json --json\n  mcp-shield policy check ./coding-agent.yaml\n  mcp-shield gateway --policy ./coding-agent.yaml --mode strict -- node ./server.js\n  mcp-shield init --client custom --config ./mcp.json\n  mcp-shield status --client custom --config ./mcp.json\n  mcp-shield rollback --client custom --config ./mcp.json\n  mcp-shield replay .mcp-shield/audit.jsonl\n  mcp-shield explain .mcp-shield/audit.jsonl evt_123\n`);
 }
 
 await main();
