@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-label="MCP Shield architecture diagram">
+  <defs>
+    <style>
+      .title{font:700 30px Arial,Helvetica,sans-serif;fill:#0f172a}.sub{font:400 16px Arial,Helvetica,sans-serif;fill:#475569}.box{fill:#f8fafc;stroke:#334155;stroke-width:2;rx:16}.sec{fill:#fee2e2;stroke:#b91c1c;stroke-width:2;rx:16}.pol{fill:#eef2ff;stroke:#4338ca;stroke-width:2;rx:16}.ok{fill:#ecfdf5;stroke:#047857;stroke-width:2;rx:16}.audit{fill:#fff7ed;stroke:#c2410c;stroke-width:2;rx:16}.text{font:700 16px Arial,Helvetica,sans-serif;fill:#111827}.small{font:400 13px Arial,Helvetica,sans-serif;fill:#374151}.arrow{stroke:#334155;stroke-width:2.2;fill:none;marker-end:url(#arrow)}
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#334155"/></marker>
+  </defs>
+  <rect width="1280" height="720" fill="#ffffff"/>
+  <text x="60" y="58" class="title">MCP Shield — Runtime Security Gateway for AI Agent Tool Calls</text>
+  <text x="60" y="86" class="sub">Local-first policy enforcement, redaction, audit, and explainable blocking before MCP tool execution.</text>
+
+  <rect x="60" y="155" width="200" height="100" class="box"/><text x="104" y="190" class="text">AI Agent</text><text x="94" y="217" class="small">MCP client / tool user</text><text x="95" y="235" class="small">model-driven actions</text>
+  <rect x="320" y="155" width="200" height="100" class="pol"/><text x="362" y="190" class="text">Config Adapter</text><text x="363" y="217" class="small">scan / wrap / rollback</text><text x="360" y="235" class="small">client integration</text>
+  <rect x="580" y="155" width="200" height="100" class="sec"/><text x="630" y="190" class="text">Gateway Proxy</text><text x="627" y="217" class="small">intercepts calls</text><text x="628" y="235" class="small">JSON-RPC routing</text>
+  <rect x="840" y="155" width="200" height="100" class="box"/><text x="889" y="190" class="text">MCP Server</text><text x="889" y="217" class="small">tool execution</text><text x="883" y="235" class="small">filesystem / APIs</text>
+
+  <path d="M260 205 H320" class="arrow"/><path d="M520 205 H580" class="arrow"/>
+
+  <rect x="390" y="350" width="200" height="100" class="pol"/><text x="435" y="385" class="text">Policy Engine</text><text x="429" y="412" class="small">allow / audit / block</text><text x="437" y="430" class="small">rule precedence</text>
+  <rect x="650" y="350" width="200" height="100" class="sec"/><text x="704" y="385" class="text">Scanner</text><text x="688" y="412" class="small">manifest + metadata</text><text x="692" y="430" class="small">drift detection</text>
+  <rect x="910" y="350" width="200" height="100" class="audit"/><text x="963" y="385" class="text">Redaction</text><text x="961" y="412" class="small">secrets removed</text><text x="955" y="430" class="small">safe persistence</text>
+
+  <path d="M680 255 C650 315 530 315 490 350" class="arrow"/><path d="M680 255 C700 315 735 315 750 350" class="arrow"/><path d="M680 255 C760 315 970 315 1010 350" class="arrow"/>
+
+  <rect x="240" y="550" width="190" height="90" class="ok"/><text x="304" y="583" class="text">Allow</text><text x="280" y="610" class="small">safe execution</text>
+  <rect x="470" y="550" width="190" height="90" class="audit"/><text x="523" y="583" class="text">Audit Only</text><text x="514" y="610" class="small">log + continue</text>
+  <rect x="700" y="550" width="190" height="90" class="audit"/><text x="741" y="583" class="text">Approval</text><text x="738" y="610" class="small">human decision</text>
+  <rect x="930" y="550" width="190" height="90" class="sec"/><text x="985" y="583" class="text">Block</text><text x="964" y="610" class="small">explain + stop</text>
+
+  <path d="M490 450 C460 500 360 500 335 550" class="arrow"/><path d="M490 450 C505 500 550 505 565 550" class="arrow"/><path d="M490 450 C610 510 760 510 795 550" class="arrow"/><path d="M490 450 C670 500 990 500 1025 550" class="arrow"/>
+  <path d="M430 595 C520 675 830 675 940 255" class="arrow"/>
+  <path d="M890 595 C940 520 940 315 940 255" class="arrow"/>
+</svg>
