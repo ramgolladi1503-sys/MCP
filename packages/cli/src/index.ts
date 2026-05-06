@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { readFile } from "node:fs/promises";
+import { explainAuditEvent, formatReplaySummary, parseAuditJsonl, replayAuditEvents } from "@mcp-shield/audit";
 import { formatPolicyCheck, loadPolicyFromYaml } from "@mcp-shield/policy";
 import { formatScanReport, scanMcpConfigJson, stringifyScanReport } from "@mcp-shield/scanner";
 
@@ -35,6 +36,16 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "explain") {
+    await runExplain(process.argv.slice(3));
+    return;
+  }
+
+  if (command === "replay") {
+    await runReplay(process.argv.slice(3));
+    return;
+  }
+
   if (!Object.hasOwn(commands, command)) {
     console.error(`Unknown command: ${command}`);
     printHelp();
@@ -43,7 +54,7 @@ async function main(): Promise<void> {
   }
 
   console.error(`Command '${command}' is planned but not implemented in this feature block yet.`);
-  console.error("Policy/compiler and scanner are implemented first. Runtime blocks come next.");
+  console.error("Policy, scanner, and audit commands are implemented first. Runtime blocks come next.");
   process.exitCode = 2;
 }
 
@@ -103,12 +114,44 @@ async function runPolicy(args: readonly string[]): Promise<void> {
   }
 }
 
+async function runExplain(args: readonly string[]): Promise<void> {
+  const auditPath = args[0];
+  const eventId = args[1];
+  if (!auditPath || !eventId) {
+    console.error("Usage: mcp-shield explain <audit.jsonl> <event_id>");
+    process.exitCode = 1;
+    return;
+  }
+
+  const events = parseAuditJsonl(await readFile(auditPath, "utf8"));
+  const event = events.find((candidate) => candidate.eventId === eventId);
+  if (!event) {
+    console.error(`Audit event not found: ${eventId}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  process.stdout.write(`${explainAuditEvent(event)}\n`);
+}
+
+async function runReplay(args: readonly string[]): Promise<void> {
+  const auditPath = args[0];
+  if (!auditPath) {
+    console.error("Usage: mcp-shield replay <audit.jsonl>");
+    process.exitCode = 1;
+    return;
+  }
+
+  const events = parseAuditJsonl(await readFile(auditPath, "utf8"));
+  process.stdout.write(`${formatReplaySummary(replayAuditEvents(events))}\n`);
+}
+
 function printHelp(): void {
   const rows = Object.entries(commands)
     .map(([name, description]) => `  ${name.padEnd(10)} ${description}`)
     .join("\n");
 
-  process.stdout.write(`MCP Shield\n\nUsage:\n  mcp-shield <command> [options]\n\nCommands:\n${rows}\n\nExamples:\n  mcp-shield scan ./mcp.json\n  mcp-shield scan ./mcp.json --json\n  mcp-shield policy check ./coding-agent.yaml\n`);
+  process.stdout.write(`MCP Shield\n\nUsage:\n  mcp-shield <command> [options]\n\nCommands:\n${rows}\n\nExamples:\n  mcp-shield scan ./mcp.json\n  mcp-shield scan ./mcp.json --json\n  mcp-shield policy check ./coding-agent.yaml\n  mcp-shield replay .mcp-shield/audit.jsonl\n  mcp-shield explain .mcp-shield/audit.jsonl evt_123\n`);
 }
 
 await main();
