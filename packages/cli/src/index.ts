@@ -2,7 +2,9 @@
 
 import { readFile } from "node:fs/promises";
 import { explainAuditEvent, formatReplaySummary, parseAuditJsonl, replayAuditEvents } from "@mcp-shield/audit";
+import { startStdioGateway } from "@mcp-shield/gateway";
 import { formatPolicyCheck, loadPolicyFromYaml } from "@mcp-shield/policy";
+import type { RuntimeMode } from "@mcp-shield/shared";
 import { formatScanReport, scanMcpConfigJson, stringifyScanReport } from "@mcp-shield/scanner";
 
 const command = process.argv[2] ?? "help";
@@ -46,6 +48,11 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "gateway") {
+    await runGateway(process.argv.slice(3));
+    return;
+  }
+
   if (!Object.hasOwn(commands, command)) {
     console.error(`Unknown command: ${command}`);
     printHelp();
@@ -54,7 +61,7 @@ async function main(): Promise<void> {
   }
 
   console.error(`Command '${command}' is planned but not implemented in this feature block yet.`);
-  console.error("Policy, scanner, and audit commands are implemented first. Runtime blocks come next.");
+  console.error("Scanner, policy, audit, and gateway commands are implemented first. Config adapter and demo come next.");
   process.exitCode = 2;
 }
 
@@ -146,12 +153,70 @@ async function runReplay(args: readonly string[]): Promise<void> {
   process.stdout.write(`${formatReplaySummary(replayAuditEvents(events))}\n`);
 }
 
+async function runGateway(args: readonly string[]): Promise<void> {
+  const separatorIndex = args.indexOf("--");
+  if (separatorIndex === -1 || separatorIndex === args.length - 1) {
+    console.error("Usage: mcp-shield gateway --policy <policy.yaml> [--mode strict|balanced|audit-only] [--server-name name] [--audit-file path] -- <server-command> [args...]");
+    process.exitCode = 1;
+    return;
+  }
+
+  const options = args.slice(0, separatorIndex);
+  const target = args.slice(separatorIndex + 1);
+  const policyPath = getOption(options, "--policy") ?? "examples/policies/coding-agent.yaml";
+  const mode = parseMode(getOption(options, "--mode") ?? "balanced");
+  const serverName = getOption(options, "--server-name") ?? "target";
+  const auditFile = getOption(options, "--audit-file") ?? ".mcp-shield/audit.jsonl";
+  const command = target[0];
+  const serverArgs = target.slice(1);
+
+  if (!command) {
+    console.error("Missing target MCP server command after -- separator.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const compiled = loadPolicyFromYaml(await readFile(policyPath, "utf8"));
+  if (!compiled.valid) {
+    console.error(formatPolicyCheck(compiled));
+    process.exitCode = 1;
+    return;
+  }
+
+  await startStdioGateway({
+    command,
+    args: serverArgs,
+    policy: compiled.policy,
+    sessionId: `sess_${Date.now()}`,
+    serverName,
+    mode,
+    auditFile
+  });
+}
+
+function getOption(args: readonly string[], name: string): string | null {
+  const index = args.indexOf(name);
+  if (index === -1) {
+    return null;
+  }
+
+  return args[index + 1] ?? null;
+}
+
+function parseMode(value: string): RuntimeMode {
+  if (value === "audit-only" || value === "balanced" || value === "strict") {
+    return value;
+  }
+
+  throw new Error(`Invalid mode '${value}'. Use audit-only, balanced, or strict.`);
+}
+
 function printHelp(): void {
   const rows = Object.entries(commands)
     .map(([name, description]) => `  ${name.padEnd(10)} ${description}`)
     .join("\n");
 
-  process.stdout.write(`MCP Shield\n\nUsage:\n  mcp-shield <command> [options]\n\nCommands:\n${rows}\n\nExamples:\n  mcp-shield scan ./mcp.json\n  mcp-shield scan ./mcp.json --json\n  mcp-shield policy check ./coding-agent.yaml\n  mcp-shield replay .mcp-shield/audit.jsonl\n  mcp-shield explain .mcp-shield/audit.jsonl evt_123\n`);
+  process.stdout.write(`MCP Shield\n\nUsage:\n  mcp-shield <command> [options]\n\nCommands:\n${rows}\n\nExamples:\n  mcp-shield scan ./mcp.json\n  mcp-shield scan ./mcp.json --json\n  mcp-shield policy check ./coding-agent.yaml\n  mcp-shield gateway --policy ./coding-agent.yaml --mode strict -- node ./server.js\n  mcp-shield replay .mcp-shield/audit.jsonl\n  mcp-shield explain .mcp-shield/audit.jsonl evt_123\n`);
 }
 
 await main();
