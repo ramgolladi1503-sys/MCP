@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-      - hardening/mvp-completion-clean
 
 jobs:
   build-test:
@@ -24,7 +23,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
 
       - name: Install
         run: pnpm install --frozen-lockfile=false
