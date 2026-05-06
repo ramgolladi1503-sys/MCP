@@ -23,6 +23,8 @@ jobs:
           test -f docs/architecture/mcp-shield-architecture.svg
           test -f docs/one-pagers/ai-security-mcp-shield.md
           test -f docs/github-profile-readme-template.md
+          test -f packages/policy/src/engine.ts
+          test -f tests/unit/policy-engine.test.ts
 
       - name: Check README sections
         run: |
@@ -33,11 +35,17 @@ jobs:
           grep -qi "Failure modes" README.md
           grep -qi "Roadmap" README.md
 
-      - name: Check for broken placeholders that must not ship silently
-        run: |
-          set -euo pipefail
-          ! grep -R "ADD_LINKEDIN_URL_HERE" README.md docs/one-pagers || true
-          ! grep -R "ADD_EMAIL_HERE" README.md docs/one-pagers || true
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install test dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run real policy engine unit tests
+        run: npx vitest run tests/unit/policy-engine.test.ts --reporter=verbose
 
       - name: Generate portfolio test report
         run: |
@@ -47,7 +55,7 @@ jobs:
 
           ## Scope
 
-          This CI gate validates the repository as a recruiter-facing engineering portfolio.
+          This CI gate validates both portfolio readiness and the first real runtime-security unit tests.
 
           ## Checks
 
@@ -56,11 +64,13 @@ jobs:
           - AI security one-pager exists.
           - GitHub profile README template exists.
           - README includes problem statement, architecture, test strategy, failure modes, and roadmap.
+          - Policy engine source exists.
+          - Policy engine unit tests exist.
+          - Vitest runs policy-engine tests for allow, block, approval, precedence, and redaction behavior.
 
-          ## Notes
+          ## Current honest limitation
 
-          This workflow intentionally does not claim runtime product tests are passing until implementation code exists.
-          It is a documentation and portfolio quality gate for the current MVP planning stage.
+          This is not yet a full MCP proxy end-to-end test. It is the first real tested security slice: deterministic policy evaluation and secret redaction.
           REPORT
 
       - name: Upload portfolio report
