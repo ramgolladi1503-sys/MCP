@@ -1,0 +1,36 @@
+{
+  "name": "mcp-shield-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Local-first runtime security gateway for MCP tools and AI agents.",
+  "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20.11.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "clean": "git clean -xfd node_modules dist coverage .turbo",
+    "dev": "pnpm --filter @mcp-shield/cli dev",
+    "lint": "eslint . --ext .ts,.tsx,.js,.cjs,.mjs",
+    "typecheck": "tsc -b tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run tests/unit packages",
+    "test:integration": "vitest run tests/integration",
+    "test:corpus": "vitest run tests/corpus",
+    "doctor": "pnpm --filter @mcp-shield/cli mcp-shield doctor",
+    "policy:check": "pnpm --filter @mcp-shield/cli mcp-shield policy check examples/policies/coding-agent.yaml",
+    "security:secrets": "gitleaks detect --source . --no-banner --redact || true",
+    "ci": "pnpm lint && pnpm typecheck && pnpm test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@typescript-eslint/eslint-plugin": "^8.20.0",
+    "@typescript-eslint/parser": "^8.20.0",
+    "eslint": "^9.18.0",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}
