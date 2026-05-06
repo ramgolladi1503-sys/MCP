@@ -92,7 +92,7 @@ Python, FastAPI, Pytest, Playwright, Selenium, React, Vite, TypeScript, JavaScri
 ## Contact
 
 - GitHub: https://github.com/ramgolladi1503-sys
-- LinkedIn: ADD_LINKEDIN_URL_HERE
+- LinkedIn: https://www.linkedin.com/in/ram-golladi
 - Email: ADD_EMAIL_HERE
 
 ---
