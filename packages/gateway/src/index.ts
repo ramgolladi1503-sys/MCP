@@ -207,7 +207,7 @@ export async function startStdioGateway(options: StdioGatewayOptions): Promise<v
   const startupTimeoutMs = options.startupTimeoutMs ?? 10000;
   const toolCallTimeoutMs = options.toolCallTimeoutMs ?? 60000;
   const child = spawn(options.command, [...options.args], {
-    cwd: options.cwd,
+    ...(options.cwd ? { cwd: options.cwd } : {}),
     env: buildChildEnv(options.env),
     stdio: ["pipe", "pipe", "pipe"]
   });
