@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "useUnknownInCatchVariables": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@mcp-shield/shared": ["packages/shared/src/index.ts"],
+      "@mcp-shield/policy": ["packages/policy/src/index.ts"],
+      "@mcp-shield/scanner": ["packages/scanner/src/index.ts"],
+      "@mcp-shield/audit": ["packages/audit/src/index.ts"],
+      "@mcp-shield/gateway": ["packages/gateway/src/index.ts"],
+      "@mcp-shield/config-adapter": ["packages/config-adapter/src/index.ts"]
+    }
+  }
+}

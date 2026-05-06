@@ -1,0 +1,11 @@
+policy_version: "1.0"
+default_action: allow
+workspace_roots: []
+blocked_paths: []
+blocked_commands: []
+deny_unknown_domains: false
+feature_flags:
+  scanner: true
+  gateway: true
+  tamper_evident_audit: false
+  config_rewrite: true

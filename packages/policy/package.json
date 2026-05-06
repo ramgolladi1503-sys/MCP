@@ -1,0 +1,12 @@
+{
+  "name": "@mcp-shield/policy",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": { "build": "tsc -p tsconfig.json" },
+  "dependencies": {
+    "@mcp-shield/shared": "workspace:*",
+    "yaml": "^2.7.0"
+  }
+}

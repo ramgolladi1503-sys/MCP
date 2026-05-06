@@ -1,0 +1,26 @@
+{
+  "name": "@mcp-shield/cli",
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "mcp-shield": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "mcp-shield": "node dist/index.js"
+  },
+  "dependencies": {
+    "@mcp-shield/shared": "workspace:*",
+    "@mcp-shield/policy": "workspace:*",
+    "@mcp-shield/scanner": "workspace:*",
+    "@mcp-shield/audit": "workspace:*",
+    "@mcp-shield/gateway": "workspace:*",
+    "@mcp-shield/config-adapter": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}
