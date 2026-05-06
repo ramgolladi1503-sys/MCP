@@ -1,12 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { redactText, serializeAuditEvent } from "../../../packages/audit/src/index";
+import {
+  createAuditEvent,
+  explainAuditEvent,
+  hashEvent,
+  parseAuditJsonl,
+  redactText,
+  replayAuditEvents,
+  serializeAuditEvent
+} from "../../../packages/audit/src/index";
 import type { AuditEvent } from "../../../packages/shared/src/index";
 
 const baseEvent: AuditEvent = {
   auditSchemaVersion: "1.0",
   eventId: "evt_1",
   previousEventHash: null,
-  eventHash: "hash_1",
+  eventHash: "sha256:test",
   timestamp: "2026-05-07T00:00:00.000Z",
   sessionId: "sess_1",
   serverName: "filesystem",
@@ -34,6 +42,47 @@ describe("redactText", () => {
 
     expect(result.redactionApplied).toBe(true);
     expect(result.value).toContain("[REDACTED_DATABASE_URL]");
+  });
+});
+
+describe("createAuditEvent", () => {
+  it("creates tamper-evident audit events", () => {
+    const event = createAuditEvent({
+      previousEventHash: null,
+      sessionId: "sess_1",
+      serverName: "filesystem",
+      method: "tools/call",
+      toolName: "filesystem.read_file",
+      argsSummary: { path: ".env" },
+      decision: "BLOCK",
+      severity: "critical",
+      ruleId: "secret.path.blocked",
+      reason: "Attempted access to a blocked sensitive path",
+      mode: "strict"
+    });
+
+    expect(event.eventId).toMatch(/^evt_/);
+    expect(event.eventHash).toBe(hashEvent({ ...event, eventHash: "pending" }));
+    expect(event.previousEventHash).toBeNull();
+  });
+
+  it("redacts secrets before putting args into an audit event", () => {
+    const event = createAuditEvent({
+      previousEventHash: null,
+      sessionId: "sess_1",
+      serverName: "http",
+      method: "tools/call",
+      toolName: "http.request",
+      argsSummary: { Authorization: "Bearer abcdefghijklmnopqrstuvwxyz0123456789" },
+      decision: "BLOCK",
+      severity: "critical",
+      ruleId: "secret.argument.authorization",
+      reason: "Authorization header detected",
+      mode: "strict"
+    });
+
+    expect(event.redactionApplied).toBe(true);
+    expect(JSON.stringify(event.argsSummary)).toContain("Bearer [REDACTED]");
   });
 });
 
@@ -65,5 +114,66 @@ describe("serializeAuditEvent", () => {
 
     expect(line).toContain("Bearer [REDACTED]");
     expect(line).not.toContain("abcdefghijklmnopqrstuvwxyz0123456789");
+  });
+});
+
+describe("explain and replay", () => {
+  it("explains blocked events", () => {
+    const event = createAuditEvent({
+      previousEventHash: null,
+      sessionId: "sess_1",
+      serverName: "filesystem",
+      method: "tools/call",
+      toolName: "filesystem.read_file",
+      argsSummary: { path: ".env" },
+      decision: "BLOCK",
+      severity: "critical",
+      ruleId: "secret.path.blocked",
+      reason: "Attempted access to a blocked sensitive path",
+      mode: "strict"
+    });
+
+    const output = explainAuditEvent(event);
+
+    expect(output).toContain("Decision: BLOCK");
+    expect(output).toContain("Rule: secret.path.blocked");
+    expect(output).toContain("Fix:");
+  });
+
+  it("parses and replays JSONL audit events", () => {
+    const first = createAuditEvent({
+      previousEventHash: null,
+      sessionId: "sess_1",
+      serverName: "filesystem",
+      method: "tools/call",
+      toolName: "filesystem.read_file",
+      argsSummary: { path: ".env" },
+      decision: "BLOCK",
+      severity: "critical",
+      ruleId: "secret.path.blocked",
+      reason: "Attempted access to a blocked sensitive path",
+      mode: "strict"
+    });
+    const second = createAuditEvent({
+      previousEventHash: first.eventHash,
+      sessionId: "sess_1",
+      serverName: "filesystem",
+      method: "tools/call",
+      toolName: "filesystem.read_file",
+      argsSummary: { path: "README.md" },
+      decision: "ALLOW",
+      severity: "info",
+      ruleId: "default.allow",
+      reason: "Default policy action allows this call",
+      mode: "strict"
+    });
+
+    const events = parseAuditJsonl(`${serializeAuditEvent(first)}${serializeAuditEvent(second)}`);
+    const replay = replayAuditEvents(events);
+
+    expect(replay.totalEvents).toBe(2);
+    expect(replay.bySeverity.critical).toBe(1);
+    expect(replay.byDecision.BLOCK).toBe(1);
+    expect(replay.warnings).toEqual([]);
   });
 });
