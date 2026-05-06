@@ -13,7 +13,7 @@
     "build": "pnpm -r build",
     "clean": "git clean -xfd node_modules dist coverage .turbo",
     "dev": "pnpm --filter @mcp-shield/cli dev",
-    "lint": "eslint . --ext .ts,.tsx,.js,.cjs,.mjs",
+    "lint": "eslint .",
     "typecheck": "tsc -b tsconfig.build.json",
     "test": "vitest run",
     "test:watch": "vitest",
