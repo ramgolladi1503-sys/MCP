@@ -9,7 +9,7 @@ on:
 
 jobs:
   portfolio-quality-gate:
-    name: Documentation, architecture, and portfolio quality gate
+    name: Documentation, architecture, JSON-RPC, policy, and portfolio quality gate
     runs-on: ubuntu-latest
 
     steps:
@@ -24,7 +24,9 @@ jobs:
           test -f docs/one-pagers/ai-security-mcp-shield.md
           test -f docs/github-profile-readme-template.md
           test -f packages/policy/src/engine.ts
+          test -f packages/shared/src/jsonrpc.ts
           test -f tests/unit/policy-engine.test.ts
+          test -f tests/unit/jsonrpc-contract.test.ts
 
       - name: Check README sections
         run: |
@@ -44,8 +46,8 @@ jobs:
       - name: Install test dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Run real policy engine unit tests
-        run: npx vitest run tests/unit/policy-engine.test.ts --reporter=verbose
+      - name: Run real MCP unit and contract tests
+        run: npx vitest run tests/unit/policy-engine.test.ts tests/unit/jsonrpc-contract.test.ts --reporter=verbose
 
       - name: Generate portfolio test report
         run: |
@@ -55,7 +57,7 @@ jobs:
 
           ## Scope
 
-          This CI gate validates both portfolio readiness and the first real runtime-security unit tests.
+          This CI gate validates portfolio readiness and real tested security slices.
 
           ## Checks
 
@@ -64,13 +66,14 @@ jobs:
           - AI security one-pager exists.
           - GitHub profile README template exists.
           - README includes problem statement, architecture, test strategy, failure modes, and roadmap.
-          - Policy engine source exists.
-          - Policy engine unit tests exist.
+          - Policy engine source and tests exist.
+          - JSON-RPC/MCP contract source and tests exist.
           - Vitest runs policy-engine tests for allow, block, approval, precedence, and redaction behavior.
+          - Vitest runs JSON-RPC contract tests for request validation, MCP tools/call detection, extraction, and malformed params.
 
           ## Current honest limitation
 
-          This is not yet a full MCP proxy end-to-end test. It is the first real tested security slice: deterministic policy evaluation and secret redaction.
+          This is not yet a full MCP proxy end-to-end test. It now covers deterministic policy evaluation, secret redaction, and JSON-RPC/MCP tool-call contract validation.
           REPORT
 
       - name: Upload portfolio report
