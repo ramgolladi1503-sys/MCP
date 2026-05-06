@@ -528,7 +528,11 @@ function trackPendingRequest(
     request,
     timedOut: false,
     timer: setTimeout(() => {
-      pendingRequest.timedOut = true;
+      const tracked = pending.get(request.id as string | number);
+      if (!tracked) {
+        return;
+      }
+      tracked.timedOut = true;
       process.stderr.write(`[mcp-shield] Request ${String(request.id)} timed out after ${timeoutMs}ms.\n`);
       process.stdout.write(
         serializeJsonRpc({
