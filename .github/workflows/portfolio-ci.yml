@@ -9,7 +9,7 @@ on:
 
 jobs:
   portfolio-quality-gate:
-    name: Documentation, architecture, JSON-RPC, policy, and portfolio quality gate
+    name: Documentation, architecture, JSON-RPC, policy, audit, and portfolio quality gate
     runs-on: ubuntu-latest
 
     steps:
@@ -24,9 +24,12 @@ jobs:
           test -f docs/one-pagers/ai-security-mcp-shield.md
           test -f docs/github-profile-readme-template.md
           test -f packages/policy/src/engine.ts
+          test -f packages/policy/src/parser.ts
           test -f packages/shared/src/jsonrpc.ts
+          test -f packages/audit/src/events.ts
           test -f tests/unit/policy-engine.test.ts
           test -f tests/unit/jsonrpc-contract.test.ts
+          test -f tests/unit/policy-parser-audit.test.ts
 
       - name: Check README sections
         run: |
@@ -47,7 +50,7 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Run real MCP unit and contract tests
-        run: npx vitest run tests/unit/policy-engine.test.ts tests/unit/jsonrpc-contract.test.ts --reporter=verbose
+        run: npx vitest run tests/unit/policy-engine.test.ts tests/unit/jsonrpc-contract.test.ts tests/unit/policy-parser-audit.test.ts --reporter=verbose
 
       - name: Generate portfolio test report
         run: |
@@ -68,12 +71,15 @@ jobs:
           - README includes problem statement, architecture, test strategy, failure modes, and roadmap.
           - Policy engine source and tests exist.
           - JSON-RPC/MCP contract source and tests exist.
+          - Policy parser source and tests exist.
+          - Audit event source and tests exist.
           - Vitest runs policy-engine tests for allow, block, approval, precedence, and redaction behavior.
           - Vitest runs JSON-RPC contract tests for request validation, MCP tools/call detection, extraction, and malformed params.
+          - Vitest runs parser/audit tests for YAML-lite policies, JSON policies, validation failures, and redacted audit events.
 
           ## Current honest limitation
 
-          This is not yet a full MCP proxy end-to-end test. It now covers deterministic policy evaluation, secret redaction, and JSON-RPC/MCP tool-call contract validation.
+          This is not yet a full MCP proxy end-to-end test. It now covers deterministic policy evaluation, secret redaction, JSON-RPC/MCP tool-call contract validation, policy parsing, and audit event construction.
           REPORT
 
       - name: Upload portfolio report
