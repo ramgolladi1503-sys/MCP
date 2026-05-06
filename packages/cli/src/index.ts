@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { readFile } from "node:fs/promises";
+import { formatPolicyCheck, loadPolicyFromYaml } from "@mcp-shield/policy";
 import { formatScanReport, scanMcpConfigJson, stringifyScanReport } from "@mcp-shield/scanner";
 
 const command = process.argv[2] ?? "help";
@@ -29,6 +30,11 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "policy") {
+    await runPolicy(process.argv.slice(3));
+    return;
+  }
+
   if (!Object.hasOwn(commands, command)) {
     console.error(`Unknown command: ${command}`);
     printHelp();
@@ -37,7 +43,7 @@ async function main(): Promise<void> {
   }
 
   console.error(`Command '${command}' is planned but not implemented in this feature block yet.`);
-  console.error("Scanner v1 is implemented first. Other feature blocks stay behind clean package boundaries.");
+  console.error("Policy/compiler and scanner are implemented first. Runtime blocks come next.");
   process.exitCode = 2;
 }
 
@@ -67,12 +73,42 @@ async function runScan(args: readonly string[]): Promise<void> {
   }
 }
 
+async function runPolicy(args: readonly string[]): Promise<void> {
+  const subcommand = args[0] ?? "help";
+
+  if (subcommand !== "check") {
+    console.error("Unsupported policy command.");
+    console.error("Usage: mcp-shield policy check <policy.yaml>");
+    process.exitCode = 1;
+    return;
+  }
+
+  const targetPath = args.slice(1).find((arg) => !arg.startsWith("-"));
+  if (!targetPath) {
+    console.error("Missing policy path.");
+    console.error("Usage: mcp-shield policy check <policy.yaml>");
+    process.exitCode = 1;
+    return;
+  }
+
+  try {
+    const text = await readFile(targetPath, "utf8");
+    const compiled = loadPolicyFromYaml(text);
+    process.stdout.write(`${formatPolicyCheck(compiled)}\n`);
+    process.exitCode = compiled.valid ? 0 : 1;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown policy failure";
+    console.error(`Policy check failed: ${message}`);
+    process.exitCode = 1;
+  }
+}
+
 function printHelp(): void {
   const rows = Object.entries(commands)
     .map(([name, description]) => `  ${name.padEnd(10)} ${description}`)
     .join("\n");
 
-  process.stdout.write(`MCP Shield\n\nUsage:\n  mcp-shield <command> [options]\n\nCommands:\n${rows}\n\nExamples:\n  mcp-shield scan ./mcp.json\n  mcp-shield scan ./mcp.json --json\n`);
+  process.stdout.write(`MCP Shield\n\nUsage:\n  mcp-shield <command> [options]\n\nCommands:\n${rows}\n\nExamples:\n  mcp-shield scan ./mcp.json\n  mcp-shield scan ./mcp.json --json\n  mcp-shield policy check ./coding-agent.yaml\n`);
 }
 
 await main();
