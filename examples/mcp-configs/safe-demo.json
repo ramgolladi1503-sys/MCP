@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "filesystem-project": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem@2025.1.0", "./demo-workspace"]
+    },
+    "local-docs": {
+      "command": "node",
+      "args": ["./servers/docs-reader.js"],
+      "env": {
+        "PATH": "/usr/bin:/bin"
+      }
+    }
+  }
+}
