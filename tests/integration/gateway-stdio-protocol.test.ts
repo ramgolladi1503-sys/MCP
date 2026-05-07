@@ -19,12 +19,14 @@ describe("stdio gateway protocol harness", () => {
     const child = spawn(
       "pnpm",
       [
+        "--filter",
+        "@mcp-shield/cli",
         "exec",
         "tsx",
-        "packages/cli/src/index.ts",
+        "src/index.ts",
         "gateway",
         "--policy",
-        "examples/policies/coding-agent.yaml",
+        "../../examples/policies/coding-agent.yaml",
         "--mode",
         "strict",
         "--server-name",
@@ -33,7 +35,7 @@ describe("stdio gateway protocol harness", () => {
         auditFile,
         "--",
         "node",
-        "examples/malicious-mcp-server/index.js"
+        "../../examples/malicious-mcp-server/index.js"
       ],
       {
         cwd: process.cwd(),
