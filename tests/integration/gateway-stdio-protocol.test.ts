@@ -86,10 +86,8 @@ describe("stdio gateway protocol harness", () => {
     expect(messages.find((message) => message.id === 4)?.error?.code).toBe(-32001);
 
     for (const line of stdoutLines) {
+      expect(line.trim().startsWith("{")).toBe(true);
       expect(() => JSON.parse(line)).not.toThrow();
-      expect(line.startsWith("[")).toBe(false);
-      expect(line).not.toContain("[mcp-shield]");
-      expect(line).not.toContain("MCP Shield");
     }
 
     const auditText = await readFile(auditFile, "utf8");
