@@ -9,7 +9,9 @@ import { formatPolicyCheck, loadPolicyFromYaml } from "@mcp-shield/policy";
 import type { RuntimeMode } from "@mcp-shield/shared";
 import { formatScanReport, scanMcpConfigJson, stringifyScanReport } from "@mcp-shield/scanner";
 
-const command = process.argv[2] ?? "help";
+const rawArgs = process.argv.slice(2);
+const cliArgs = rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs;
+const command = cliArgs[0] ?? "help";
 
 const commands: Record<string, string> = {
   help: "Show available MCP Shield commands",
@@ -32,42 +34,42 @@ async function main(): Promise<void> {
   }
 
   if (command === "scan") {
-    await runScan(process.argv.slice(3));
+    await runScan(cliArgs.slice(1));
     return;
   }
 
   if (command === "policy") {
-    await runPolicy(process.argv.slice(3));
+    await runPolicy(cliArgs.slice(1));
     return;
   }
 
   if (command === "explain") {
-    await runExplain(process.argv.slice(3));
+    await runExplain(cliArgs.slice(1));
     return;
   }
 
   if (command === "replay") {
-    await runReplay(process.argv.slice(3));
+    await runReplay(cliArgs.slice(1));
     return;
   }
 
   if (command === "gateway") {
-    await runGateway(process.argv.slice(3));
+    await runGateway(cliArgs.slice(1));
     return;
   }
 
   if (command === "init") {
-    await runInit(process.argv.slice(3));
+    await runInit(cliArgs.slice(1));
     return;
   }
 
   if (command === "status") {
-    await runStatus(process.argv.slice(3));
+    await runStatus(cliArgs.slice(1));
     return;
   }
 
   if (command === "rollback" || command === "disable") {
-    await runRollback(process.argv.slice(3), command);
+    await runRollback(cliArgs.slice(1), command);
     return;
   }
 
