@@ -35,8 +35,17 @@ jobs:
       - name: Install
         run: pnpm install --no-frozen-lockfile
 
+      - name: Print TypeScript config diagnostics
+        run: |
+          echo "--- tsconfig.base.json ---"
+          cat tsconfig.base.json
+          echo "--- tsconfig.build.json ---"
+          cat tsconfig.build.json
+          echo "--- resolved shared config ---"
+          pnpm exec tsc --showConfig -p packages/shared/tsconfig.json | head -120
+
       - name: Typecheck
-        run: pnpm typecheck
+        run: pnpm exec tsc -b tsconfig.build.json --pretty false
 
       - name: Lint
         run: pnpm lint
