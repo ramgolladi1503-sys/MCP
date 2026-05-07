@@ -5,6 +5,7 @@ import type { AuditEvent, DecisionType, ResponseDecisionType, RuntimeMode, Sever
 import { nowIso } from "@mcp-shield/shared";
 
 const REDACTION_PATTERNS: readonly [RegExp, string][] = [
+  [/(authorization\s*[=:]\s*)[^\s"']+(?:\s+[^\s"']+)?/gi, "$1[REDACTED_AUTHORIZATION]"],
   [/ghp_[A-Za-z0-9_]{20,}/g, "[REDACTED_GITHUB_TOKEN]"],
   [/github_pat_[A-Za-z0-9_]{20,}/g, "[REDACTED_GITHUB_TOKEN]"],
   [/AKIA[0-9A-Z]{16}/g, "[REDACTED_AWS_ACCESS_KEY]"],
@@ -12,7 +13,6 @@ const REDACTION_PATTERNS: readonly [RegExp, string][] = [
   [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, "[REDACTED_PRIVATE_KEY]"],
   [/postgres(?:ql)?:\/\/[^\s"']+/gi, "[REDACTED_DATABASE_URL]"],
   [/(password\s*[=:]\s*)[^\s"']+/gi, "$1[REDACTED_PASSWORD]"],
-  [/(authorization\s*[=:]\s*)[^\s"']+/gi, "$1[REDACTED_AUTHORIZATION]"],
   [/(cookie\s*[=:]\s*)[^\s"']+/gi, "$1[REDACTED_COOKIE]"]
 ];
 
