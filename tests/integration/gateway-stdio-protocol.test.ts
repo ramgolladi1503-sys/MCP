@@ -17,11 +17,13 @@ describe("stdio gateway protocol harness", () => {
     const tempDir = await mkdtemp(join(tmpdir(), "mcp-shield-gateway-"));
     const auditFile = join(tempDir, "audit.jsonl");
     const child = spawn(
-      process.execPath,
+      "pnpm",
       [
-        "--import",
-        "tsx",
-        "packages/cli/src/index.ts",
+        "--silent",
+        "--filter",
+        "@mcp-shield/cli",
+        "dev",
+        "--",
         "gateway",
         "--policy",
         "examples/policies/coding-agent.yaml",
