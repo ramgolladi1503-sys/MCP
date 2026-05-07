@@ -19,11 +19,9 @@ describe("stdio gateway protocol harness", () => {
     const child = spawn(
       "pnpm",
       [
-        "--silent",
-        "--filter",
-        "@mcp-shield/cli",
-        "dev",
-        "--",
+        "exec",
+        "tsx",
+        "packages/cli/src/index.ts",
         "gateway",
         "--policy",
         "examples/policies/coding-agent.yaml",
@@ -73,7 +71,7 @@ describe("stdio gateway protocol harness", () => {
       })}\n`
     );
 
-    await waitFor(() => stdoutLines.length >= 4, 8000);
+    await waitFor(() => stdoutLines.length >= 4, 8000, () => `stdout=${stdoutLines.join("\n")}\nstderr=${stderrChunks.join("")}`);
 
     child.kill("SIGTERM");
     await waitForExit(child, 5000);
@@ -99,7 +97,7 @@ describe("stdio gateway protocol harness", () => {
   }, 15000);
 });
 
-async function waitFor(assertion: () => boolean, timeoutMs: number): Promise<void> {
+async function waitFor(assertion: () => boolean, timeoutMs: number, describeState?: () => string): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (assertion()) {
@@ -107,7 +105,7 @@ async function waitFor(assertion: () => boolean, timeoutMs: number): Promise<voi
     }
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  throw new Error("Timed out waiting for condition");
+  throw new Error(`Timed out waiting for condition${describeState ? `\n${describeState()}` : ""}`);
 }
 
 async function waitForExit(child: ReturnType<typeof spawn>, timeoutMs: number): Promise<void> {
