@@ -20,10 +20,12 @@
     "test:unit": "vitest run tests/unit packages",
     "test:integration": "vitest run tests/integration",
     "test:corpus": "vitest run tests/corpus",
+    "test:smoke": "node scripts/smoke-test.mjs",
+    "test:hardening": "pnpm test:unit && pnpm test:integration && pnpm test:corpus && pnpm test:smoke",
     "doctor": "pnpm --filter @mcp-shield/cli mcp-shield doctor",
     "policy:check": "pnpm --filter @mcp-shield/cli mcp-shield policy check examples/policies/coding-agent.yaml",
     "security:secrets": "gitleaks detect --source . --no-banner --redact || true",
-    "ci": "pnpm lint && pnpm typecheck && pnpm test"
+    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:smoke"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
