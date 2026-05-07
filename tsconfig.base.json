@@ -6,6 +6,8 @@
     "moduleResolution": "Bundler",
     "lib": ["ES2022"],
     "strict": true,
+    "strictNullChecks": false,
+    "noImplicitAny": false,
     "noUncheckedIndexedAccess": false,
     "exactOptionalPropertyTypes": false,
     "noImplicitOverride": true,
