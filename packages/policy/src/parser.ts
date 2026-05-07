@@ -1,4 +1,4 @@
-import type { PolicyRule } from "./engine";
+import type { PolicyRule } from "./engine.js";
 
 export type PolicyDocument = {
   rules: PolicyRule[];
