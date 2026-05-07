@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { readFile } from "node:fs/promises";
+import { dirname, isAbsolute, join } from "node:path";
 import { explainAuditEvent, formatReplaySummary, parseAuditJsonl, replayAuditEvents } from "@mcp-shield/audit";
 import { formatConfigStatus, getConfigStatus, initProtectedConfig, restoreLatestBackup } from "@mcp-shield/config-adapter";
 import type { SupportedMcpClient } from "@mcp-shield/config-adapter";
@@ -93,8 +94,8 @@ async function runScan(args: readonly string[]): Promise<void> {
   }
 
   try {
-    const text = await readFile(targetPath, "utf8");
-    const report = scanMcpConfigJson(text, targetPath);
+    const file = await readCliFile(targetPath);
+    const report = scanMcpConfigJson(file.text, file.path);
     process.stdout.write(json ? `${stringifyScanReport(report)}\n` : `${formatScanReport(report)}\n`);
 
     if (report.overallRisk === "critical" || report.overallRisk === "high") {
@@ -126,8 +127,8 @@ async function runPolicy(args: readonly string[]): Promise<void> {
   }
 
   try {
-    const text = await readFile(targetPath, "utf8");
-    const compiled = loadPolicyFromYaml(text);
+    const file = await readCliFile(targetPath);
+    const compiled = loadPolicyFromYaml(file.text);
     process.stdout.write(`${formatPolicyCheck(compiled)}\n`);
     process.exitCode = compiled.valid ? 0 : 1;
   } catch (error) {
@@ -146,7 +147,8 @@ async function runExplain(args: readonly string[]): Promise<void> {
     return;
   }
 
-  const events = parseAuditJsonl(await readFile(auditPath, "utf8"));
+  const file = await readCliFile(auditPath);
+  const events = parseAuditJsonl(file.text);
   const event = events.find((candidate) => candidate.eventId === eventId);
   if (!event) {
     console.error(`Audit event not found: ${eventId}`);
@@ -165,7 +167,8 @@ async function runReplay(args: readonly string[]): Promise<void> {
     return;
   }
 
-  const events = parseAuditJsonl(await readFile(auditPath, "utf8"));
+  const file = await readCliFile(auditPath);
+  const events = parseAuditJsonl(file.text);
   process.stdout.write(`${formatReplaySummary(replayAuditEvents(events))}\n`);
 }
 
@@ -192,7 +195,8 @@ async function runGateway(args: readonly string[]): Promise<void> {
     return;
   }
 
-  const compiled = loadPolicyFromYaml(await readFile(policyPath, "utf8"));
+  const policyFile = await readCliFile(policyPath);
+  const compiled = loadPolicyFromYaml(policyFile.text);
   if (!compiled.valid) {
     console.error(formatPolicyCheck(compiled));
     process.exitCode = 1;
@@ -214,8 +218,9 @@ async function runInit(args: readonly string[]): Promise<void> {
   const client = parseClient(getOption(args, "--client") ?? "custom");
   const configPath = getOption(args, "--config") ?? undefined;
   const policyPath = getOption(args, "--policy") ?? "examples/policies/coding-agent.yaml";
+  const policyFile = await readCliFile(policyPath);
   const mode = parseMode(getOption(args, "--mode") ?? "balanced");
-  const plan = await initProtectedConfig({ client, configPath, policyPath, mode });
+  const plan = await initProtectedConfig({ client, configPath, policyPath: policyFile.path, mode });
   process.stdout.write(`Protected ${plan.operations.length} MCP server(s).\nBackup: ${plan.backupPath}\nMapping: ${plan.mappingPath}\n`);
 }
 
@@ -239,6 +244,50 @@ function getOption(args: readonly string[], name: string): string | null {
   }
 
   return args[index + 1] ?? null;
+}
+
+async function readCliFile(inputPath: string): Promise<{ readonly path: string; readonly text: string }> {
+  let missingError: unknown;
+
+  for (const candidate of candidateInputPaths(inputPath)) {
+    try {
+      return { path: candidate, text: await readFile(candidate, "utf8") };
+    } catch (error) {
+      if (!isMissingFileError(error)) {
+        throw error;
+      }
+      missingError = error;
+    }
+  }
+
+  if (missingError instanceof Error) {
+    throw missingError;
+  }
+
+  throw new Error(`File not found: ${inputPath}`);
+}
+
+function candidateInputPaths(inputPath: string): readonly string[] {
+  if (isAbsolute(inputPath)) {
+    return [inputPath];
+  }
+
+  const candidates: string[] = [];
+  let current = process.cwd();
+  while (true) {
+    candidates.push(join(current, inputPath));
+    const parent = dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+
+  return [...new Set(candidates)];
+}
+
+function isMissingFileError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error as { readonly code?: unknown }).code === "ENOENT";
 }
 
 function parseMode(value: string): RuntimeMode {
