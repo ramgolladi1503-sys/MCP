@@ -1,4 +1,4 @@
-export * from "./approval";
+export * from "./approval.js";
 
 import { createInterface } from "node:readline";
 import { spawn } from "node:child_process";
