@@ -83,7 +83,9 @@ export function evaluateJsonRpcRequest(params: {
       request.id ?? null,
       {
         ruleId: "protocol.invalid_tool_call_shape",
-        severity: "high"
+        severity: "high",
+        reason: "tools/call params must include name and arguments object",
+        suggestedFix: "Send a valid MCP tools/call request with params.name and params.arguments."
       },
       eventId
     );
@@ -112,30 +114,57 @@ export function evaluateJsonRpcRequest(params: {
   };
 
   const decision = decideToolCall(policy, context);
-  const auditEvent = createAuditEvent({
+  const baseAudit = {
     previousEventHash,
     sessionId,
     serverName,
     method: request.method,
     toolName: context.toolName,
     argsSummary: context.arguments,
-    decision: decision.decision,
     severity: decision.severity,
     ruleId: decision.ruleId,
     reason: decision.reason,
     mode
-  });
+  } as const;
 
   if (decision.decision === "BLOCK") {
     return {
       shouldForward: false,
       context,
-      auditEvent,
+      auditEvent: createAuditEvent({ ...baseAudit, decision: "BLOCK" }),
       response: blockedJsonRpcResponse(request.id ?? null, decision, eventId)
     };
   }
 
-  return { shouldForward: true, context, auditEvent };
+  if (decision.decision === "APPROVE") {
+    const deniedDecision = {
+      ...decision,
+      decision: "BLOCK" as const,
+      ruleId: "approval.required_not_granted",
+      reason: "Tool call requires human approval, but MCP Shield has no approved side-channel decision for this request.",
+      suggestedFix:
+        decision.suggestedFix ??
+        "Use a read-only/dry-run command first, or run this behind an approval broker that can record an explicit approval decision without corrupting MCP stdio."
+    };
+
+    return {
+      shouldForward: false,
+      context,
+      auditEvent: createAuditEvent({
+        ...baseAudit,
+        decision: "BLOCK",
+        ruleId: deniedDecision.ruleId,
+        reason: deniedDecision.reason
+      }),
+      response: blockedJsonRpcResponse(request.id ?? null, deniedDecision, eventId)
+    };
+  }
+
+  return {
+    shouldForward: true,
+    context,
+    auditEvent: createAuditEvent({ ...baseAudit, decision: decision.decision })
+  };
 }
 
 export function inspectResponsePayload(payload: unknown): ResponseInspectionResult {
@@ -263,7 +292,20 @@ export async function startStdioGateway(options: StdioGatewayOptions): Promise<v
           });
           previousEventHash = auditEvent.eventHash;
           await appendAuditEvent(options.auditFile, auditEvent);
-          process.stdout.write(serializeJsonRpc(blockedJsonRpcResponse(message.id, { ruleId: inspection.ruleId, severity: inspection.severity }, auditEvent.eventId)));
+          process.stdout.write(
+            serializeJsonRpc(
+              blockedJsonRpcResponse(
+                message.id,
+                {
+                  ruleId: inspection.ruleId,
+                  severity: inspection.severity,
+                  reason: inspection.reason,
+                  suggestedFix: "Treat this tool response as untrusted content. Ask the server for structured data without embedded instructions."
+                },
+                auditEvent.eventId
+              )
+            )
+          );
           return;
         }
       }
@@ -359,19 +401,30 @@ function evaluateResourceRead(params: {
     method: params.request.method,
     toolName: "resources/read",
     argsSummary: resourceArgs,
-    decision: decision.decision,
+    decision: decision.decision === "APPROVE" ? "BLOCK" : decision.decision,
     severity: decision.severity,
-    ruleId: decision.ruleId,
-    reason: decision.reason,
+    ruleId: decision.decision === "APPROVE" ? "approval.required_not_granted" : decision.ruleId,
+    reason: decision.decision === "APPROVE" ? "Resource request requires approval, but no side-channel approval was granted." : decision.reason,
     mode: params.mode
   });
 
-  if (decision.decision === "BLOCK") {
+  if (decision.decision === "BLOCK" || decision.decision === "APPROVE") {
+    const responseDecision =
+      decision.decision === "APPROVE"
+        ? {
+            ...decision,
+            decision: "BLOCK" as const,
+            ruleId: "approval.required_not_granted",
+            reason: "Resource request requires approval, but no side-channel approval was granted.",
+            suggestedFix: "Use an allowed resource/path or configure a reviewed approval broker."
+          }
+        : decision;
+
     return {
       shouldForward: false,
       context,
       auditEvent,
-      response: blockedJsonRpcResponse(params.request.id ?? null, decision, params.eventId)
+      response: blockedJsonRpcResponse(params.request.id ?? null, responseDecision, params.eventId)
     };
   }
 
@@ -486,7 +539,8 @@ function handleReverseRequest(request: JsonRpcRequest, policy: PolicyConfig, chi
         message: "MCP Shield blocked this server-initiated request",
         data: {
           rule_id: `reverse_request.${request.method}.blocked`,
-          severity: "high"
+          severity: "high",
+          suggested_fix: "Disable server-initiated sampling/elicitation unless a reviewed approval broker is configured."
         }
       }
     })
