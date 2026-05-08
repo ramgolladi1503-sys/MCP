@@ -4,15 +4,17 @@ import { createInterface } from "node:readline";
 import { spawn } from "node:child_process";
 import { createAuditEvent, appendAuditEvent } from "@mcp-shield/audit";
 import { blockedJsonRpcResponse, nowIso } from "@mcp-shield/shared";
-import type { AuditEvent, JsonRpcRequest, JsonRpcResponse, ToolCallContext } from "@mcp-shield/shared";
+import type { AuditEvent, JsonRpcRequest, JsonRpcResponse, PolicyDecision, ToolCallContext } from "@mcp-shield/shared";
 import { decideToolCall } from "@mcp-shield/policy";
 import type { PolicyConfig } from "@mcp-shield/policy";
+import { createApprovalRequest, defaultApprovalStoreDir } from "./approval.js";
 
 export interface GatewayDecisionResult {
   readonly shouldForward: boolean;
   readonly response?: JsonRpcResponse;
   readonly context?: ToolCallContext;
   readonly auditEvent?: AuditEvent;
+  readonly approvalRequiredDecision?: PolicyDecision;
 }
 
 export interface ResponseInspectionResult {
@@ -35,6 +37,8 @@ export interface StdioGatewayOptions {
   readonly env?: Readonly<Record<string, string>>;
   readonly startupTimeoutMs?: number;
   readonly toolCallTimeoutMs?: number;
+  readonly approvalStoreDir?: string;
+  readonly approvalTtlMs?: number;
 }
 
 interface PendingRequest {
@@ -152,6 +156,7 @@ export function evaluateJsonRpcRequest(params: {
     return {
       shouldForward: false,
       context,
+      approvalRequiredDecision: decision,
       auditEvent: createAuditEvent({
         ...baseAudit,
         decision: "BLOCK",
@@ -237,6 +242,7 @@ export function serializeJsonRpc(value: JsonRpcRequest | JsonRpcResponse | unkno
 export async function startStdioGateway(options: StdioGatewayOptions): Promise<void> {
   const startupTimeoutMs = options.startupTimeoutMs ?? 10000;
   const toolCallTimeoutMs = options.toolCallTimeoutMs ?? 60000;
+  const approvalStoreDir = options.approvalStoreDir ?? defaultApprovalStoreDir();
   const child = spawn(options.command, [...options.args], {
     ...(options.cwd ? { cwd: options.cwd } : {}),
     env: buildChildEnv(options.env),
@@ -347,7 +353,18 @@ export async function startStdioGateway(options: StdioGatewayOptions): Promise<v
 
     if (!result.shouldForward) {
       if (result.response) {
-        process.stdout.write(serializeJsonRpc(result.response));
+        let response = result.response;
+        if (result.context && result.approvalRequiredDecision) {
+          const approval = await createApprovalRequest({
+            storeDir: approvalStoreDir,
+            context: result.context,
+            decision: result.approvalRequiredDecision,
+            ttlMs: options.approvalTtlMs
+          });
+          process.stderr.write(`[mcp-shield] Approval required: ${approval.id}\n`);
+          response = withApprovalId(response, approval.id);
+        }
+        process.stdout.write(serializeJsonRpc(response));
       }
       return;
     }
@@ -374,6 +391,24 @@ export async function startStdioGateway(options: StdioGatewayOptions): Promise<v
       resolve();
     });
   });
+}
+
+function withApprovalId(response: JsonRpcResponse, approvalId: string): JsonRpcResponse {
+  if (!("error" in response)) {
+    return response;
+  }
+
+  return {
+    ...response,
+    error: {
+      ...response.error,
+      data: {
+        ...(response.error.data ?? {}),
+        approval_id: approvalId,
+        approval_status: "pending"
+      }
+    }
+  };
 }
 
 function evaluateResourceRead(params: {
@@ -425,6 +460,7 @@ function evaluateResourceRead(params: {
     return {
       shouldForward: false,
       context,
+      approvalRequiredDecision: decision.decision === "APPROVE" ? decision : undefined,
       auditEvent,
       response: blockedJsonRpcResponse(params.request.id ?? null, responseDecision, params.eventId)
     };
