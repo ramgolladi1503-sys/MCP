@@ -7,7 +7,7 @@ import { blockedJsonRpcResponse, nowIso } from "@mcp-shield/shared";
 import type { AuditEvent, JsonRpcRequest, JsonRpcResponse, PolicyDecision, ToolCallContext } from "@mcp-shield/shared";
 import { decideToolCall } from "@mcp-shield/policy";
 import type { PolicyConfig } from "@mcp-shield/policy";
-import { createApprovalRequest, defaultApprovalStoreDir } from "./approval.js";
+import { awaitApprovalDecision, createApprovalRequest, defaultApprovalStoreDir } from "./approval.js";
 
 export interface GatewayDecisionResult {
   readonly shouldForward: boolean;
@@ -39,6 +39,8 @@ export interface StdioGatewayOptions {
   readonly toolCallTimeoutMs?: number;
   readonly approvalStoreDir?: string;
   readonly approvalTtlMs?: number;
+  readonly approvalWaitMs?: number;
+  readonly approvalPollIntervalMs?: number;
 }
 
 interface PendingRequest {
@@ -362,7 +364,28 @@ export async function startStdioGateway(options: StdioGatewayOptions): Promise<v
             ttlMs: options.approvalTtlMs
           });
           process.stderr.write(`[mcp-shield] Approval required: ${approval.id}\n`);
-          response = withApprovalId(response, approval.id);
+
+          if (options.approvalWaitMs && options.approvalWaitMs > 0) {
+            const approved = await awaitApprovalDecision({
+              storeDir: approvalStoreDir,
+              id: approval.id,
+              expectedRequestHash: approval.requestHash,
+              timeoutMs: options.approvalWaitMs,
+              pollIntervalMs: options.approvalPollIntervalMs
+            });
+
+            if (approved.status === "approved") {
+              process.stderr.write(`[mcp-shield] Approval granted: ${approval.id}\n`);
+              trackPendingRequest(request, pending, toolCallTimeoutMs, options);
+              child.stdin.write(`${line}\n`);
+              return;
+            }
+
+            process.stderr.write(`[mcp-shield] Approval not granted: ${approval.id} (${approved.status})\n`);
+            response = withApprovalId(response, approval.id, approved.status);
+          } else {
+            response = withApprovalId(response, approval.id, "pending");
+          }
         }
         process.stdout.write(serializeJsonRpc(response));
       }
@@ -393,7 +416,7 @@ export async function startStdioGateway(options: StdioGatewayOptions): Promise<v
   });
 }
 
-function withApprovalId(response: JsonRpcResponse, approvalId: string): JsonRpcResponse {
+function withApprovalId(response: JsonRpcResponse, approvalId: string, approvalStatus: string): JsonRpcResponse {
   if (!("error" in response)) {
     return response;
   }
@@ -405,7 +428,7 @@ function withApprovalId(response: JsonRpcResponse, approvalId: string): JsonRpcR
       data: {
         ...(response.error.data ?? {}),
         approval_id: approvalId,
-        approval_status: "pending"
+        approval_status: approvalStatus
       }
     }
   };
