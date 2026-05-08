@@ -66,14 +66,14 @@ try {
   assertNotIncludes("package contents", packageList, "package/src/");
   assertNotIncludes("package contents", packageList, "tsbuildinfo");
 
-  run("npm publish dry-run", "npm", ["publish", "--dry-run", "--access", "public"], { cwd: cliDir, printOutput: true });
+  run("pnpm publish dry-run", "pnpm", ["publish", "--dry-run", "--no-git-checks", "--access", "public"], { cwd: cliDir, printOutput: true });
 
   if (!shouldPublish) {
     process.stdout.write("✓ Real publish skipped. Set MCP_SHIELD_PUBLISH=1 only when intentionally publishing.\n");
     process.exit(0);
   }
 
-  run("npm publish", "npm", ["publish", "--access", "public"], { cwd: cliDir, printOutput: true });
+  run("pnpm publish", "pnpm", ["publish", "--no-git-checks", "--access", "public"], { cwd: cliDir, printOutput: true });
 } finally {
   rmSync(packageDir, { recursive: true, force: true });
 }
