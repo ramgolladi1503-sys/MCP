@@ -21,8 +21,7 @@
     "@mcp-shield/scanner": "workspace:*",
     "@mcp-shield/audit": "workspace:*",
     "@mcp-shield/gateway": "workspace:*",
-    "@mcp-shield/config-adapter": "workspace:*",
-    "@mcp-shield/approval": "workspace:*"
+    "@mcp-shield/config-adapter": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.19.2"
