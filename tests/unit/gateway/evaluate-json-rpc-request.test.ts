@@ -141,7 +141,7 @@ describe("evaluateJsonRpcRequest", () => {
           event_id: "evt_approve",
           rule_id: "approval.required_not_granted",
           severity: "high",
-          suggested_fix: expect.stringContaining("approval")
+          suggested_fix: expect.stringContaining("Approve")
         }
       }
     });
