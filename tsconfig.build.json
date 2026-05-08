@@ -2,7 +2,6 @@
   "files": [],
   "references": [
     { "path": "./packages/shared" },
-    { "path": "./packages/approval" },
     { "path": "./packages/policy" },
     { "path": "./packages/scanner" },
     { "path": "./packages/audit" },
