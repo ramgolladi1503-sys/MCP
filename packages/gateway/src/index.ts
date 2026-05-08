@@ -1,3 +1,5 @@
+export * from "./approval";
+
 import { createInterface } from "node:readline";
 import { spawn } from "node:child_process";
 import { createAuditEvent, appendAuditEvent } from "@mcp-shield/audit";
