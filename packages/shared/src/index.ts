@@ -1,5 +1,11 @@
 export type DecisionType = "ALLOW" | "WARN" | "APPROVE" | "BLOCK";
 export type ResponseDecisionType = "ALLOW_RESPONSE" | "WARN_RESPONSE" | "REDACT_RESPONSE" | "BLOCK_RESPONSE";
+export type ApprovalLifecycleDecisionType =
+  | "APPROVAL_REQUESTED"
+  | "APPROVAL_APPROVED"
+  | "APPROVAL_DENIED"
+  | "APPROVAL_EXPIRED"
+  | "APPROVAL_FORWARDED";
 export type Severity = "info" | "low" | "medium" | "high" | "critical";
 export type RuntimeMode = "audit-only" | "balanced" | "strict";
 
@@ -34,7 +40,7 @@ export interface AuditEvent {
   readonly method: string;
   readonly toolName?: string;
   readonly argsSummary?: Readonly<Record<string, unknown>>;
-  readonly decision: DecisionType | ResponseDecisionType;
+  readonly decision: DecisionType | ResponseDecisionType | ApprovalLifecycleDecisionType;
   readonly severity: Severity;
   readonly ruleId?: string;
   readonly reason?: string;
