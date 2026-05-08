@@ -257,6 +257,42 @@ A script-ready demo is documented in [docs/DEMO.md](docs/DEMO.md). It covers:
 
 ---
 
+## Repository governance
+
+MCP Shield uses protected-branch discipline for production-ready work.
+
+Required local validation before merging security, gateway, policy, scanner, audit, config-adapter, CLI, or release changes:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm build
+pnpm typecheck
+pnpm lint
+pnpm test:hardening
+```
+
+For CLI or release changes, also validate the built binary and package tarball:
+
+```bash
+node packages/cli/dist/index.js --help
+node packages/cli/dist/index.js policy check examples/policies/coding-agent.yaml
+
+package_dir="$(mktemp -d)"
+(cd packages/cli && pnpm pack --pack-destination "$package_dir")
+package_file="$(find "$package_dir" -name '*.tgz' -print -quit)"
+test -n "$package_file"
+tar -tf "$package_file" | grep -q '^package/package.json$'
+tar -tf "$package_file" | grep -q '^package/dist/index.js$'
+tar -tf "$package_file" | grep -q '^package/dist/index.d.ts$'
+```
+
+See:
+
+- [Branch protection policy](docs/BRANCH_PROTECTION.md)
+- [Release checklist](docs/RELEASE_CHECKLIST.md)
+
+---
+
 ## Roadmap
 
 ### Phase 1 — Foundation
