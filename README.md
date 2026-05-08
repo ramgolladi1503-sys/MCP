@@ -16,6 +16,7 @@ This is not positioned as a toy demo. The project is designed as a production-mi
 - [AI Security one-pager](docs/one-pagers/ai-security-mcp-shield.md)
 - [Test reports guide](docs/test-reports/README.md)
 - [Demo workflow](docs/DEMO.md)
+- [Real-world Git/Shell/DB demos](docs/REAL_WORLD_DEMOS.md)
 - [GitHub profile README template](docs/github-profile-readme-template.md)
 - LinkedIn: https://www.linkedin.com/in/ram-golladi
 
@@ -80,6 +81,12 @@ Smoke-test the quickstart commands:
 pnpm test:smoke
 ```
 
+For release validation:
+
+```bash
+pnpm release:dry-run
+```
+
 ---
 
 ## Architecture image
@@ -141,8 +148,8 @@ flowchart LR
     D --> G{Decision}
     G -->|allow| H[MCP Server / Tool]
     G -->|audit only| H
-    G -->|approve| I[Human Approval]
-    G -->|block| J[Blocked + Explain]
+    G -->|approve/fail closed until broker| I[Approval Gate]
+    G -->|block| J[Blocked + Safe Alternative]
     I --> H
     F --> K[Append-only Audit Events]
 ```
@@ -170,6 +177,7 @@ examples/
 docs/
   ARCHITECTURE.md
   DEMO.md
+  REAL_WORLD_DEMOS.md
   QUALITY_GATES.md
   BUILDING_BLOCKS.md
 ```
@@ -210,6 +218,8 @@ Fixtures and tests for prompt injection, poisoned manifests, risky command execu
 - Suspicious tool description or prompt-injection pattern.
 - Secrets detected in request or response payload.
 - Destructive command routed to approval or block.
+- Approval-required calls fail closed unless a reviewed approval broker grants execution.
+- Network egress to unknown domains is blocked when deny-unknown-domain policy is enabled.
 - MCP manifest drift after approval.
 - Policy compile error fails closed where appropriate.
 - Audit logging continues with redaction even during partial runtime errors.
@@ -226,6 +236,7 @@ Fixtures and tests for prompt injection, poisoned manifests, risky command execu
 - Redaction tests to prove secrets are not persisted.
 - Hash-chain tests to detect audit tampering.
 - End-to-end tests for install, status, rollback, strict mode, block, and quickstart commands.
+- Release dry-run test for built CLI and publish preflight.
 
 Commands:
 
@@ -235,6 +246,7 @@ pnpm test:integration
 pnpm test:corpus
 pnpm test:smoke
 pnpm test:hardening
+pnpm release:dry-run
 ```
 
 See: [Test reports guide](docs/test-reports/README.md)
@@ -254,6 +266,8 @@ A script-ready demo is documented in [docs/DEMO.md](docs/DEMO.md). It covers:
 7. Replay audit.
 8. Explain a blocked decision.
 9. Roll back protected config.
+
+Real-world Git/Shell/DB workflows and Claude Desktop/Cursor manual validation steps are documented in [docs/REAL_WORLD_DEMOS.md](docs/REAL_WORLD_DEMOS.md).
 
 ---
 
