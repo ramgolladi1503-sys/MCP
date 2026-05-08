@@ -101,6 +101,8 @@ const KNOWN_POLICY_KEYS = new Set([
   "featureFlags"
 ]);
 
+const URL_ARG_KEYS = ["url", "uri", "endpoint", "host", "domain"] as const;
+
 export function loadPolicyFromYaml(text: string): CompiledPolicy {
   let parsed: unknown;
   try {
@@ -170,7 +172,7 @@ export function compilePolicy(input: unknown): CompiledPolicy {
     allowedPathExceptions: stringList(read(input, "allowed_path_exceptions", "allowedPathExceptions"), DEFAULT_POLICY.allowedPathExceptions),
     blockedCommands: stringList(read(input, "blocked_commands", "blockedCommands"), DEFAULT_POLICY.blockedCommands),
     approvalRequired: stringList(read(input, "approval_required", "approvalRequired"), DEFAULT_POLICY.approvalRequired),
-    allowedDomains: stringList(read(input, "allowed_domains", "allowedDomains"), DEFAULT_POLICY.allowedDomains),
+    allowedDomains: stringList(read(input, "allowed_domains", "allowedDomains"), DEFAULT_POLICY.allowedDomains).map(normalizeDomain).filter(isString),
     denyUnknownDomains: booleanValue(read(input, "deny_unknown_domains", "denyUnknownDomains"), DEFAULT_POLICY.denyUnknownDomains),
     featureFlags: featureFlagsValue(read(input, "feature_flags", "featureFlags"))
   };
@@ -214,6 +216,15 @@ export function validatePolicy(policy: PolicyConfig): readonly PolicyCheckIssue[
     });
   }
 
+  if (policy.denyUnknownDomains && policy.allowedDomains.length === 0) {
+    issues.push({
+      level: "warning",
+      ruleId: "policy.network.no_allowed_domains",
+      message: "deny_unknown_domains=true with no allowed_domains will block all network egress.",
+      suggestedFix: "Add only required domains, for example github.com and api.github.com."
+    });
+  }
+
   if (!policy.denyUnknownDomains) {
     issues.push({
       level: "warning",
@@ -241,6 +252,8 @@ export function formatPolicyCheck(compiled: CompiledPolicy): string {
   lines.push(`Policy version: ${compiled.policy.policyVersion}`);
   lines.push(`Default action: ${compiled.policy.defaultAction}`);
   lines.push(`Workspace roots: ${compiled.policy.workspaceRoots.join(", ") || "none"}`);
+  lines.push(`Allowed domains: ${compiled.policy.allowedDomains.join(", ") || "none"}`);
+  lines.push(`Deny unknown domains: ${compiled.policy.denyUnknownDomains ? "yes" : "no"}`);
 
   if (compiled.issues.length === 0) {
     lines.push("\nNo policy issues found.");
@@ -290,14 +303,19 @@ export function decideToolCall(policy: PolicyConfig, context: ToolCallContext): 
   }
 
   if (pathCandidate && matchesAny(pathCandidate, policy.blockedPaths)) {
-    return block("secret.path.blocked", "Attempted access to a blocked sensitive path", { path: pathCandidate });
+    return block("secret.path.blocked", "Attempted access to a blocked sensitive path", { path: pathCandidate }, "Use a non-secret fixture such as .env.example, or request a redacted secret-specific workflow instead.");
   }
 
   const commandCandidate = extractStringArg(context.arguments, "command");
+  const egressDecision = decideNetworkEgress(policy, context.arguments, commandCandidate);
+  if (egressDecision) {
+    return egressDecision;
+  }
+
   if (commandCandidate && matchesAny(commandCandidate, policy.blockedCommands)) {
     return block("command.blocked", "Attempted execution of a blocked command pattern", {
       command: summarizeCommand(commandCandidate)
-    });
+    }, "Use a read-only command first, for example git status, git diff, ls, or a dry-run/no-write equivalent.");
   }
 
   if (commandCandidate && matchesAny(commandCandidate, policy.approvalRequired)) {
@@ -309,12 +327,86 @@ export function decideToolCall(policy: PolicyConfig, context: ToolCallContext): 
   return decisionFromDefault(policy.defaultAction);
 }
 
+function decideNetworkEgress(policy: PolicyConfig, args: Readonly<Record<string, unknown>>, commandCandidate: string | null): PolicyDecision | null {
+  const hosts = extractEgressHosts(args, commandCandidate);
+  if (hosts.length === 0) {
+    return null;
+  }
+
+  const uniqueHosts = unique(hosts);
+  const unknownHosts = uniqueHosts.filter((host) => !isAllowedDomain(host, policy.allowedDomains));
+  if (unknownHosts.length === 0) {
+    return null;
+  }
+
+  if (!policy.denyUnknownDomains) {
+    return null;
+  }
+
+  return block(
+    "network.egress.domain_blocked",
+    "Attempted network egress to a domain outside the policy allowlist",
+    { domains: unknownHosts, allowedDomains: policy.allowedDomains },
+    `Use an allowlisted endpoint only (${policy.allowedDomains.join(", ") || "none configured"}) or update policy through review before sending data externally.`
+  );
+}
+
+export function extractEgressHosts(args: Readonly<Record<string, unknown>>, commandCandidate?: string | null): readonly string[] {
+  const hosts: string[] = [];
+
+  for (const key of URL_ARG_KEYS) {
+    const value = args[key];
+    if (typeof value === "string") {
+      hosts.push(...extractHostsFromText(value));
+    }
+  }
+
+  if (commandCandidate) {
+    hosts.push(...extractHostsFromText(commandCandidate));
+  }
+
+  return hosts.map(normalizeDomain).filter(isString);
+}
+
+function extractHostsFromText(text: string): readonly string[] {
+  const hosts: string[] = [];
+  const urlMatches = text.matchAll(/https?:\/\/[^\s"'<>]+/gi);
+  for (const match of urlMatches) {
+    const host = hostFromMaybeUrl(match[0]);
+    if (host) {
+      hosts.push(host);
+    }
+  }
+
+  const trimmed = text.trim();
+  if (!trimmed.includes(" ") && !trimmed.includes("/") && /^[a-z0-9.-]+(?::\d+)?$/i.test(trimmed)) {
+    const host = hostFromMaybeUrl(`https://${trimmed}`);
+    if (host) {
+      hosts.push(host);
+    }
+  }
+
+  return hosts;
+}
+
+function hostFromMaybeUrl(value: string): string | null {
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return null;
+  }
+}
+
+function isAllowedDomain(host: string, allowedDomains: readonly string[]): boolean {
+  return allowedDomains.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
+}
+
 function allow(ruleId: string, reason: string): PolicyDecision {
   return { decision: "ALLOW", severity: "info", ruleId, reason };
 }
 
-function block(ruleId: string, reason: string, matched?: Readonly<Record<string, unknown>>): PolicyDecision {
-  return { decision: "BLOCK", severity: "critical", ruleId, reason, matched };
+function block(ruleId: string, reason: string, matched?: Readonly<Record<string, unknown>>, suggestedFix?: string): PolicyDecision {
+  return { decision: "BLOCK", severity: "critical", ruleId, reason, matched, suggestedFix };
 }
 
 function approveByMode(
@@ -324,22 +416,22 @@ function approveByMode(
   matched?: Readonly<Record<string, unknown>>
 ): PolicyDecision {
   if (mode === "strict") {
-    return { decision: "BLOCK", severity: "high", ruleId, reason, matched };
+    return { decision: "BLOCK", severity: "high", ruleId, reason, matched, suggestedFix: "Strict mode does not permit approvals. Switch to balanced mode for approval-gated commands, or use a read-only/dry-run command." };
   }
 
   if (mode === "audit-only") {
     return { decision: "WARN", severity: "high", ruleId, reason: `Would require approval: ${reason}`, matched };
   }
 
-  return { decision: "APPROVE", severity: "high", ruleId, reason, matched, approvalScope: "once" };
+  return { decision: "APPROVE", severity: "high", ruleId, reason, matched, approvalScope: "once", suggestedFix: "Approve only after checking command scope, target branch/environment, and rollback plan. Otherwise deny and use a read-only command first." };
 }
 
 function decisionFromDefault(defaultAction: PolicyConfig["defaultAction"]): PolicyDecision {
   switch (defaultAction) {
     case "block":
-      return { decision: "BLOCK", severity: "medium", ruleId: "default.block", reason: "Default policy action blocks this call" };
+      return { decision: "BLOCK", severity: "medium", ruleId: "default.block", reason: "Default policy action blocks this call", suggestedFix: "Add a narrow allow rule or use an already-approved safe workflow." };
     case "approve":
-      return { decision: "APPROVE", severity: "medium", ruleId: "default.approve", reason: "Default policy action requires approval", approvalScope: "once" };
+      return { decision: "APPROVE", severity: "medium", ruleId: "default.approve", reason: "Default policy action requires approval", approvalScope: "once", suggestedFix: "Approve only when the tool, arguments, and destination are expected." };
     case "warn":
       return { decision: "WARN", severity: "low", ruleId: "default.warn", reason: "Default policy action warns on this call" };
     case "allow":
@@ -410,6 +502,20 @@ function enumValue<T extends readonly string[]>(value: unknown, allowed: T): T[n
   return typeof value === "string" && (allowed as readonly string[]).includes(value) ? value : null;
 }
 
+function normalizeDomain(value: string): string | null {
+  const trimmed = value.trim().toLowerCase().replace(/\.$/, "");
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  const withoutPort = trimmed.startsWith("[") ? trimmed : trimmed.replace(/:\d+$/, "");
+  if (!/^[a-z0-9.-]+$/.test(withoutPort)) {
+    return null;
+  }
+
+  return withoutPort;
+}
+
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -418,6 +524,6 @@ function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
-function unique(values: readonly string[]): readonly string[] {
+function unique<T>(values: readonly T[]): readonly T[] {
   return [...new Set(values)];
 }
