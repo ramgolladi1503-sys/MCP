@@ -103,7 +103,7 @@ tar -tf "$package_file" | grep -E 'tsconfig|src/|tsbuildinfo' && echo "BAD: junk
 ## 7. Publish dry-run gate
 
 - [ ] Guarded release dry-run passes.
-- [ ] `npm publish --dry-run --access public` succeeds from `packages/cli`.
+- [ ] `pnpm publish --dry-run --no-git-checks --access public` succeeds from `packages/cli`.
 - [ ] Real publish remains skipped unless `MCP_SHIELD_PUBLISH=1` is explicitly set.
 
 Command:
