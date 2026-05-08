@@ -101,7 +101,8 @@ const KNOWN_POLICY_KEYS = new Set([
   "featureFlags"
 ]);
 
-const URL_ARG_KEYS = ["url", "uri", "endpoint", "host", "domain"] as const;
+const URL_VALUE_ARG_KEYS = ["url", "uri", "endpoint"] as const;
+const HOST_VALUE_ARG_KEYS = ["host", "domain"] as const;
 
 export function loadPolicyFromYaml(text: string): CompiledPolicy {
   let parsed: unknown;
@@ -354,21 +355,29 @@ function decideNetworkEgress(policy: PolicyConfig, args: Readonly<Record<string,
 export function extractEgressHosts(args: Readonly<Record<string, unknown>>, commandCandidate?: string | null): readonly string[] {
   const hosts: string[] = [];
 
-  for (const key of URL_ARG_KEYS) {
+  for (const key of URL_VALUE_ARG_KEYS) {
     const value = args[key];
     if (typeof value === "string") {
-      hosts.push(...extractHostsFromText(value));
+      hosts.push(...extractUrlHosts(value));
+    }
+  }
+
+  for (const key of HOST_VALUE_ARG_KEYS) {
+    const value = args[key];
+    if (typeof value === "string") {
+      hosts.push(...extractUrlHosts(value));
+      hosts.push(...extractBareHosts(value));
     }
   }
 
   if (commandCandidate) {
-    hosts.push(...extractHostsFromText(commandCandidate));
+    hosts.push(...extractUrlHosts(commandCandidate));
   }
 
   return hosts.map(normalizeDomain).filter(isString);
 }
 
-function extractHostsFromText(text: string): readonly string[] {
+function extractUrlHosts(text: string): readonly string[] {
   const hosts: string[] = [];
   const urlMatches = text.matchAll(/https?:\/\/[^\s"'<>]+/gi);
   for (const match of urlMatches) {
@@ -377,16 +386,17 @@ function extractHostsFromText(text: string): readonly string[] {
       hosts.push(host);
     }
   }
+  return hosts;
+}
 
+function extractBareHosts(text: string): readonly string[] {
   const trimmed = text.trim();
   if (!trimmed.includes(" ") && !trimmed.includes("/") && /^[a-z0-9.-]+(?::\d+)?$/i.test(trimmed)) {
     const host = hostFromMaybeUrl(`https://${trimmed}`);
-    if (host) {
-      hosts.push(host);
-    }
+    return host ? [host] : [];
   }
 
-  return hosts;
+  return [];
 }
 
 function hostFromMaybeUrl(value: string): string | null {
