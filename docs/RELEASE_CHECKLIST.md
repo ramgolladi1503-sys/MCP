@@ -100,15 +100,35 @@ tar -tf "$package_file" | grep -q '^package/dist/index.d.ts$'
 tar -tf "$package_file" | grep -E 'tsconfig|src/|tsbuildinfo' && echo "BAD: junk included" || echo "OK: package is clean"
 ```
 
-## 7. Documentation review
+## 7. Publish dry-run gate
+
+- [ ] Guarded release dry-run passes.
+- [ ] `npm publish --dry-run --access public` succeeds from `packages/cli`.
+- [ ] Real publish remains skipped unless `MCP_SHIELD_PUBLISH=1` is explicitly set.
+
+Command:
+
+```bash
+pnpm release:dry-run
+```
+
+Do not run real publish from CI. The release script deliberately skips real publish unless this variable is set locally and intentionally:
+
+```bash
+MCP_SHIELD_PUBLISH=1 pnpm release:dry-run
+```
+
+## 8. Documentation review
 
 - [ ] README quickstart commands are real and tested.
 - [ ] Demo workflow still matches actual CLI behavior.
+- [ ] Real-world Git/Shell/DB demo docs still match policy behavior.
+- [ ] Claude Desktop and Cursor live validation status is documented honestly.
 - [ ] Branch protection policy is current.
 - [ ] Security behavior is documented honestly.
 - [ ] Known limitations are not hidden.
 
-## 8. PR readiness
+## 9. PR readiness
 
 - [ ] PR summary is specific.
 - [ ] Validation section includes actual commands run.
@@ -117,8 +137,24 @@ tar -tf "$package_file" | grep -E 'tsconfig|src/|tsbuildinfo' && echo "BAD: junk
 - [ ] CI is green.
 - [ ] All conversations are resolved.
 
-## 9. Release decision
+## 10. Tag and publish decision
 
 Only tag or publish when all checks above pass.
 
-If any check fails, fix the issue in a separate commit and rerun the full checklist.
+Recommended tag flow:
+
+```bash
+git checkout main
+git pull origin main
+pnpm release:dry-run
+git tag -a v0.1.0 -m "MCP Shield v0.1.0"
+git push origin v0.1.0
+```
+
+Real publish flow:
+
+```bash
+MCP_SHIELD_PUBLISH=1 pnpm release:dry-run
+```
+
+Abort if any check fails. Fix the issue in a separate commit, rerun the full checklist, and only then tag or publish.
