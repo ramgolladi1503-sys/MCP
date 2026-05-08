@@ -7,10 +7,18 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: portfolio-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   portfolio-quality-gate:
     name: Documentation, architecture, JSON-RPC, policy, audit, and portfolio quality gate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -45,11 +53,13 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Enable pnpm
-        run: corepack enable
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
 
-      - name: Install test dependencies
-        run: pnpm install --no-frozen-lockfile
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Run real MCP unit and contract tests
         run: pnpm exec vitest run tests/unit/policy-engine.test.ts tests/unit/jsonrpc-contract.test.ts tests/unit/policy-parser-audit.test.ts --reporter=verbose

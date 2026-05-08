@@ -9,11 +9,18 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-test:
-    name: MCP Shield MVP quality gate
+  build-test-release-gate:
+    name: MCP Shield build, hardening, and release gate
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,51 +30,58 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Enable pnpm with Corepack
-        run: corepack enable
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
 
       - name: Print tool versions
         run: |
           node --version
-          corepack --version
           pnpm --version
 
-      - name: Install
-        run: pnpm install --no-frozen-lockfile
+      - name: Install with locked dependency graph
+        run: pnpm install --frozen-lockfile
 
-      - name: Print TypeScript config diagnostics
-        run: |
-          echo "--- tsconfig.base.json ---"
-          cat tsconfig.base.json
-          echo "--- tsconfig.build.json ---"
-          cat tsconfig.build.json
-          echo "--- resolved shared config ---"
-          pnpm exec tsc --showConfig -p packages/shared/tsconfig.json | head -120
+      - name: Build packages
+        run: pnpm build
 
       - name: Typecheck
-        run: pnpm exec tsc -b tsconfig.build.json --pretty false
+        run: pnpm typecheck
 
       - name: Lint
         run: pnpm lint
 
-      - name: Unit tests
-        run: pnpm test:unit
+      - name: Run hardening test suite
+        run: pnpm test:hardening
 
-      - name: Corpus tests
-        run: pnpm test:corpus
+      - name: Smoke built CLI binary
+        run: |
+          set -euo pipefail
+          node packages/cli/dist/index.js --help
+          node packages/cli/dist/index.js policy check examples/policies/coding-agent.yaml
 
-      - name: Integration tests
-        run: pnpm test:integration
+      - name: Validate CLI release tarball contents
+        run: |
+          set -euo pipefail
+          package_dir="$(mktemp -d)"
+          (
+            cd packages/cli
+            pnpm pack --pack-destination "$package_dir"
+          )
+          package_file="$(find "$package_dir" -name '*.tgz' -print -quit)"
+          test -n "$package_file"
+          tar -tf "$package_file" | grep -q '^package/package.json$'
+          tar -tf "$package_file" | grep -q '^package/dist/index.js$'
+          tar -tf "$package_file" | grep -q '^package/dist/index.d.ts$'
 
-      - name: Scanner smoke test
+      - name: Verify unsafe scanner exit contract
         run: |
           set +e
-          pnpm --filter @mcp-shield/cli dev -- scan examples/mcp-configs/unsafe-demo.json
+          node packages/cli/dist/index.js scan examples/mcp-configs/unsafe-demo.json
           code=$?
+          set -e
           if [ "$code" -ne 2 ]; then
             echo "Expected scanner to exit 2 for unsafe-demo.json, got $code"
             exit 1
           fi
-
-      - name: Policy smoke test
-        run: pnpm --filter @mcp-shield/cli dev -- policy check examples/policies/coding-agent.yaml
