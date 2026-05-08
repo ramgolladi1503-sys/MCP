@@ -243,7 +243,7 @@ async function runReplay(args: readonly string[]): Promise<void> {
 async function runGateway(args: readonly string[]): Promise<void> {
   const separatorIndex = args.indexOf("--");
   if (separatorIndex === -1 || separatorIndex === args.length - 1) {
-    console.error("Usage: mcp-shield gateway --policy <policy.yaml> [--mode strict|balanced|audit-only] [--server-name name] [--audit-file path] -- <server-command> [args...]");
+    console.error("Usage: mcp-shield gateway --policy <policy.yaml> [--mode strict|balanced|audit-only] [--server-name name] [--audit-file path] [--approval-wait-ms ms] -- <server-command> [args...]");
     process.exitCode = 1;
     return;
   }
@@ -254,6 +254,10 @@ async function runGateway(args: readonly string[]): Promise<void> {
   const mode = parseMode(getOption(options, "--mode") ?? "balanced");
   const serverName = getOption(options, "--server-name") ?? "target";
   const auditFile = getOption(options, "--audit-file") ?? ".mcp-shield/audit.jsonl";
+  const approvalStoreDir = getOption(options, "--approval-dir") ?? defaultApprovalStoreDir();
+  const approvalWaitMs = parseOptionalNonNegativeInteger(getOption(options, "--approval-wait-ms"), "--approval-wait-ms");
+  const approvalTtlMs = parseOptionalPositiveInteger(getOption(options, "--approval-ttl-ms"), "--approval-ttl-ms");
+  const approvalPollIntervalMs = parseOptionalPositiveInteger(getOption(options, "--approval-poll-ms"), "--approval-poll-ms");
   const command = target[0];
   const serverArgs = target.slice(1);
 
@@ -278,7 +282,11 @@ async function runGateway(args: readonly string[]): Promise<void> {
     sessionId: `sess_${Date.now()}`,
     serverName,
     mode,
-    auditFile
+    auditFile,
+    approvalStoreDir,
+    ...(approvalWaitMs !== undefined ? { approvalWaitMs } : {}),
+    ...(approvalTtlMs !== undefined ? { approvalTtlMs } : {}),
+    ...(approvalPollIntervalMs !== undefined ? { approvalPollIntervalMs } : {})
   });
 }
 
@@ -378,12 +386,38 @@ function parseClient(value: string): SupportedMcpClient {
   throw new Error(`Invalid client '${value}'. Use claude-desktop, cursor, or custom.`);
 }
 
+function parseOptionalPositiveInteger(value: string | null, optionName: string): number | undefined {
+  if (value === null) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${optionName} must be a positive integer.`);
+  }
+
+  return parsed;
+}
+
+function parseOptionalNonNegativeInteger(value: string | null, optionName: string): number | undefined {
+  if (value === null) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`${optionName} must be a non-negative integer.`);
+  }
+
+  return parsed;
+}
+
 function printHelp(): void {
   const rows = Object.entries(commands)
     .map(([name, description]) => `  ${name.padEnd(10)} ${description}`)
     .join("\n");
 
-  process.stdout.write(`MCP Shield\n\nUsage:\n  mcp-shield <command> [options]\n\nCommands:\n${rows}\n\nExamples:\n  mcp-shield scan ./mcp.json\n  mcp-shield scan ./mcp.json --json\n  mcp-shield policy check ./coding-agent.yaml\n  mcp-shield gateway --policy ./coding-agent.yaml --mode strict -- node ./server.js\n  mcp-shield approval list\n  mcp-shield approval show apr_123\n  mcp-shield approval approve apr_123 --reason "Reviewed command and branch"\n  mcp-shield approval deny apr_123 --reason "Unexpected production target"\n  mcp-shield init --client custom --config ./mcp.json\n  mcp-shield status --client custom --config ./mcp.json\n  mcp-shield rollback --client custom --config ./mcp.json\n  mcp-shield replay .mcp-shield/audit.jsonl\n  mcp-shield explain .mcp-shield/audit.jsonl evt_123\n`);
+  process.stdout.write(`MCP Shield\n\nUsage:\n  mcp-shield <command> [options]\n\nCommands:\n${rows}\n\nExamples:\n  mcp-shield scan ./mcp.json\n  mcp-shield scan ./mcp.json --json\n  mcp-shield policy check ./coding-agent.yaml\n  mcp-shield gateway --policy ./coding-agent.yaml --mode strict -- node ./server.js\n  mcp-shield gateway --policy ./coding-agent.yaml --mode balanced --approval-wait-ms 30000 -- node ./server.js\n  mcp-shield approval list\n  mcp-shield approval show apr_123\n  mcp-shield approval approve apr_123 --reason "Reviewed command and branch"\n  mcp-shield approval deny apr_123 --reason "Unexpected production target"\n  mcp-shield init --client custom --config ./mcp.json\n  mcp-shield status --client custom --config ./mcp.json\n  mcp-shield rollback --client custom --config ./mcp.json\n  mcp-shield replay .mcp-shield/audit.jsonl\n  mcp-shield explain .mcp-shield/audit.jsonl evt_123\n`);
 }
 
 await main();
