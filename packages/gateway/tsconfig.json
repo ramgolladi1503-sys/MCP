@@ -7,7 +7,6 @@
   },
   "references": [
     { "path": "../shared" },
-    { "path": "../approval" },
     { "path": "../policy" },
     { "path": "../audit" }
   ],
