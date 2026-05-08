@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import type { AuditEvent, DecisionType, ResponseDecisionType, RuntimeMode, Severity } from "@mcp-shield/shared";
+import type { ApprovalLifecycleDecisionType, AuditEvent, DecisionType, ResponseDecisionType, RuntimeMode, Severity } from "@mcp-shield/shared";
 import { nowIso } from "@mcp-shield/shared";
 
 const REDACTION_PATTERNS: readonly [RegExp, string][] = [
@@ -28,7 +28,7 @@ export interface CreateAuditEventInput {
   readonly method: string;
   readonly toolName?: string;
   readonly argsSummary?: Readonly<Record<string, unknown>>;
-  readonly decision: DecisionType | ResponseDecisionType;
+  readonly decision: DecisionType | ResponseDecisionType | ApprovalLifecycleDecisionType;
   readonly severity: Severity;
   readonly ruleId?: string;
   readonly reason?: string;
@@ -151,6 +151,10 @@ export function explainAuditEvent(event: AuditEvent): string {
     lines.push("Fix: Use a safer input, adjust policy intentionally, or run audit-only mode to inspect behavior before enforcement.");
   }
 
+  if (event.decision === "APPROVAL_REQUESTED") {
+    lines.push("Fix: Approve or deny this request through the approval side channel before it can execute.");
+  }
+
   return lines.join("\n");
 }
 
@@ -170,7 +174,7 @@ export function replayAuditEvents(events: readonly AuditEvent[]): ReplaySummary 
       blockedEvents.push(event);
     }
 
-    if (event.decision === "APPROVE") {
+    if (event.decision === "APPROVE" || event.decision === "APPROVAL_APPROVED" || event.decision === "APPROVAL_FORWARDED") {
       approvedEvents.push(event);
     }
 

@@ -4,10 +4,11 @@ import { createInterface } from "node:readline";
 import { spawn } from "node:child_process";
 import { createAuditEvent, appendAuditEvent } from "@mcp-shield/audit";
 import { blockedJsonRpcResponse, nowIso } from "@mcp-shield/shared";
-import type { AuditEvent, JsonRpcRequest, JsonRpcResponse, PolicyDecision, ToolCallContext } from "@mcp-shield/shared";
+import type { ApprovalLifecycleDecisionType, AuditEvent, JsonRpcRequest, JsonRpcResponse, PolicyDecision, ToolCallContext } from "@mcp-shield/shared";
 import { decideToolCall } from "@mcp-shield/policy";
 import type { PolicyConfig } from "@mcp-shield/policy";
 import { awaitApprovalDecision, createApprovalRequest, defaultApprovalStoreDir } from "./approval.js";
+import type { ApprovalRequest, ApprovalStatus } from "./approval.js";
 
 export interface GatewayDecisionResult {
   readonly shouldForward: boolean;
@@ -253,6 +254,23 @@ export async function startStdioGateway(options: StdioGatewayOptions): Promise<v
 
   let previousEventHash: string | null = null;
   const pending = new Map<string | number, PendingRequest>();
+  const appendLifecycleAudit = async (
+    approval: ApprovalRequest,
+    context: ToolCallContext,
+    decision: ApprovalLifecycleDecisionType,
+    reason: string
+  ): Promise<void> => {
+    const event = createApprovalLifecycleAuditEvent({
+      previousEventHash,
+      approval,
+      context,
+      decision,
+      reason
+    });
+    previousEventHash = event.eventHash;
+    await appendAuditEvent(options.auditFile, event);
+  };
+
   const startupTimer = setTimeout(() => {
     process.stderr.write(`[mcp-shield] Gateway startup timeout after ${startupTimeoutMs}ms.\n`);
     child.kill("SIGTERM");
@@ -363,6 +381,12 @@ export async function startStdioGateway(options: StdioGatewayOptions): Promise<v
             decision: result.approvalRequiredDecision,
             ttlMs: options.approvalTtlMs
           });
+          await appendLifecycleAudit(
+            approval,
+            result.context,
+            "APPROVAL_REQUESTED",
+            "Approval-required request was persisted and is awaiting side-channel approval."
+          );
           process.stderr.write(`[mcp-shield] Approval required: ${approval.id}\n`);
 
           if (options.approvalWaitMs && options.approvalWaitMs > 0) {
@@ -375,10 +399,31 @@ export async function startStdioGateway(options: StdioGatewayOptions): Promise<v
             });
 
             if (approved.status === "approved") {
+              await appendLifecycleAudit(
+                approved,
+                result.context,
+                "APPROVAL_APPROVED",
+                approved.reason ?? "Side-channel approval granted before wait timeout."
+              );
+              await appendLifecycleAudit(
+                approved,
+                result.context,
+                "APPROVAL_FORWARDED",
+                "Approved request was forwarded to the child MCP server."
+              );
               process.stderr.write(`[mcp-shield] Approval granted: ${approval.id}\n`);
               trackPendingRequest(request, pending, toolCallTimeoutMs, options);
               child.stdin.write(`${line}\n`);
               return;
+            }
+
+            if (approved.status === "denied" || approved.status === "expired") {
+              await appendLifecycleAudit(
+                approved,
+                result.context,
+                lifecycleDecisionForStatus(approved.status),
+                approved.reason ?? `Approval request ended as ${approved.status}.`
+              );
             }
 
             process.stderr.write(`[mcp-shield] Approval not granted: ${approval.id} (${approved.status})\n`);
@@ -414,6 +459,48 @@ export async function startStdioGateway(options: StdioGatewayOptions): Promise<v
       resolve();
     });
   });
+}
+
+function createApprovalLifecycleAuditEvent(params: {
+  readonly previousEventHash: string | null;
+  readonly approval: ApprovalRequest;
+  readonly context: ToolCallContext;
+  readonly decision: ApprovalLifecycleDecisionType;
+  readonly reason: string;
+}): AuditEvent {
+  return createAuditEvent({
+    previousEventHash: params.previousEventHash,
+    sessionId: params.approval.sessionId,
+    serverName: params.approval.serverName,
+    method: "approval/lifecycle",
+    toolName: params.approval.toolName,
+    argsSummary: {
+      approval_id: params.approval.id,
+      approval_status: params.approval.status,
+      request_hash: params.approval.requestHash,
+      raw_message_id: params.approval.rawMessageId,
+      rule_id: params.approval.ruleId,
+      arguments: params.approval.argumentsSummary
+    },
+    decision: params.decision,
+    severity: params.approval.severity,
+    ruleId: `approval.${params.decision.toLowerCase()}`,
+    reason: params.reason,
+    mode: params.context.mode
+  });
+}
+
+function lifecycleDecisionForStatus(status: ApprovalStatus): ApprovalLifecycleDecisionType {
+  if (status === "denied") {
+    return "APPROVAL_DENIED";
+  }
+  if (status === "expired") {
+    return "APPROVAL_EXPIRED";
+  }
+  if (status === "approved") {
+    return "APPROVAL_APPROVED";
+  }
+  return "APPROVAL_REQUESTED";
 }
 
 function withApprovalId(response: JsonRpcResponse, approvalId: string, approvalStatus: string): JsonRpcResponse {
