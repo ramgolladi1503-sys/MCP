@@ -8,7 +8,6 @@
   "dependencies": {
     "@mcp-shield/shared": "workspace:*",
     "@mcp-shield/policy": "workspace:*",
-    "@mcp-shield/audit": "workspace:*",
-    "@mcp-shield/approval": "workspace:*"
+    "@mcp-shield/audit": "workspace:*"
   }
 }
