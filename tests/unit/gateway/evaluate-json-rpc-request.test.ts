@@ -59,7 +59,7 @@ describe("evaluateJsonRpcRequest", () => {
     });
 
     expect(result.shouldForward).toBe(false);
-    expect(result.response).toEqual({
+    expect(result.response).toMatchObject({
       jsonrpc: "2.0",
       id: 2,
       error: {
@@ -68,7 +68,8 @@ describe("evaluateJsonRpcRequest", () => {
         data: {
           event_id: "evt_bad",
           rule_id: "protocol.invalid_tool_call_shape",
-          severity: "high"
+          severity: "high",
+          suggested_fix: "Send a valid MCP tools/call request with params.name and params.arguments."
         }
       }
     });
@@ -79,7 +80,7 @@ describe("evaluateJsonRpcRequest", () => {
     });
   });
 
-  it("blocks unsafe tools/call requests before forwarding", () => {
+  it("blocks unsafe tools/call requests before forwarding and suggests a safe alternative", () => {
     const result = evaluateJsonRpcRequest({
       request: {
         jsonrpc: "2.0",
@@ -100,10 +101,53 @@ describe("evaluateJsonRpcRequest", () => {
     expect(result.shouldForward).toBe(false);
     expect(result.context?.toolName).toBe("filesystem.read_file");
     expect(result.response?.jsonrpc).toBe("2.0");
+    expect(result.response).toMatchObject({
+      error: {
+        data: {
+          rule_id: "secret.path.blocked",
+          suggested_fix: expect.stringContaining(".env.example")
+        }
+      }
+    });
     expect(result.auditEvent).toMatchObject({
       decision: "BLOCK",
       severity: "critical",
       ruleId: "secret.path.blocked"
+    });
+  });
+
+  it("blocks approval-required tools/call requests instead of forwarding without approval", () => {
+    const result = evaluateJsonRpcRequest({
+      request: {
+        jsonrpc: "2.0",
+        id: 5,
+        method: "tools/call",
+        params: {
+          name: "shell.run",
+          arguments: { command: "git push origin main" }
+        }
+      },
+      policy,
+      sessionId: "sess_test",
+      serverName: "shell",
+      mode: "balanced",
+      eventId: "evt_approve"
+    });
+
+    expect(result.shouldForward).toBe(false);
+    expect(result.response).toMatchObject({
+      error: {
+        data: {
+          event_id: "evt_approve",
+          rule_id: "approval.required_not_granted",
+          severity: "high",
+          suggested_fix: expect.stringContaining("approval")
+        }
+      }
+    });
+    expect(result.auditEvent).toMatchObject({
+      decision: "BLOCK",
+      ruleId: "approval.required_not_granted"
     });
   });
 
