@@ -75,6 +75,9 @@ jobs:
           tar -tf "$package_file" | grep -q '^package/dist/index.js$'
           tar -tf "$package_file" | grep -q '^package/dist/index.d.ts$'
 
+      - name: Run guarded publish dry-run
+        run: pnpm release:dry-run
+
       - name: Verify unsafe scanner exit contract
         run: |
           set +e
