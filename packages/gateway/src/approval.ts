@@ -42,19 +42,21 @@ export interface ApprovalDecisionInput {
   readonly reason?: string;
 }
 
+export interface AwaitApprovalInput {
+  readonly storeDir: string;
+  readonly id: string;
+  readonly expectedRequestHash: string;
+  readonly timeoutMs: number;
+  readonly pollIntervalMs?: number;
+}
+
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_POLL_INTERVAL_MS = 250;
 
 export async function createApprovalRequest(input: CreateApprovalRequestInput): Promise<ApprovalRequest> {
   const createdAt = nowIso();
   const expiresAt = new Date(Date.now() + (input.ttlMs ?? DEFAULT_TTL_MS)).toISOString();
-  const requestHash = hashStable({
-    sessionId: input.context.sessionId,
-    serverName: input.context.serverName,
-    toolName: input.context.toolName,
-    rawMessageId: input.context.rawMessageId,
-    arguments: input.context.arguments,
-    ruleId: input.decision.ruleId
-  });
+  const requestHash = hashApprovalPayload(input.context, input.decision.ruleId);
 
   const request: ApprovalRequest = {
     schemaVersion: "1.0",
@@ -104,6 +106,50 @@ export async function approveRequest(input: ApprovalDecisionInput): Promise<Appr
 
 export async function denyRequest(input: ApprovalDecisionInput): Promise<ApprovalRequest> {
   return decideRequest(input, "denied");
+}
+
+export async function awaitApprovalDecision(input: AwaitApprovalInput): Promise<ApprovalRequest> {
+  const startedAt = Date.now();
+  const pollIntervalMs = input.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+
+  while (Date.now() - startedAt <= input.timeoutMs) {
+    const current = await readApprovalRequest(input.storeDir, input.id);
+    if (!current) {
+      throw new Error(`Approval request not found: ${input.id}`);
+    }
+
+    const normalized = markExpiredIfNeeded(current);
+    if (normalized.status === "expired" && current.status !== "expired") {
+      await writeApprovalRequest(input.storeDir, normalized);
+    }
+
+    if (normalized.status !== "pending") {
+      if (normalized.status === "approved" && normalized.requestHash !== input.expectedRequestHash) {
+        throw new Error(`Approval request hash mismatch for ${input.id}`);
+      }
+      return normalized;
+    }
+
+    await sleep(pollIntervalMs);
+  }
+
+  const current = await readApprovalRequest(input.storeDir, input.id);
+  if (!current) {
+    throw new Error(`Approval request not found: ${input.id}`);
+  }
+
+  return markExpiredIfNeeded(current);
+}
+
+export function hashApprovalPayload(context: ToolCallContext, ruleId: string): string {
+  return hashStable({
+    sessionId: context.sessionId,
+    serverName: context.serverName,
+    toolName: context.toolName,
+    rawMessageId: context.rawMessageId,
+    arguments: context.arguments,
+    ruleId
+  });
 }
 
 export function formatApprovalRequest(request: ApprovalRequest): string {
@@ -265,4 +311,8 @@ function isApprovalRequest(value: unknown): value is ApprovalRequest {
     typeof (value as { readonly id?: unknown }).id === "string" &&
     typeof (value as { readonly status?: unknown }).status === "string"
   );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
