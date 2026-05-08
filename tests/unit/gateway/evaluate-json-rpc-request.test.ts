@@ -109,6 +109,7 @@ describe("evaluateJsonRpcRequest", () => {
         }
       }
     });
+    expect(result.approvalRequiredDecision).toBeUndefined();
     expect(result.auditEvent).toMatchObject({
       decision: "BLOCK",
       severity: "critical",
@@ -116,7 +117,7 @@ describe("evaluateJsonRpcRequest", () => {
     });
   });
 
-  it("blocks approval-required tools/call requests instead of forwarding without approval", () => {
+  it("blocks approval-required tools/call requests, exposes approval decision, and does not forward", () => {
     const result = evaluateJsonRpcRequest({
       request: {
         jsonrpc: "2.0",
@@ -135,6 +136,11 @@ describe("evaluateJsonRpcRequest", () => {
     });
 
     expect(result.shouldForward).toBe(false);
+    expect(result.approvalRequiredDecision).toMatchObject({
+      decision: "APPROVE",
+      ruleId: "command.approval_required",
+      severity: "high"
+    });
     expect(result.response).toMatchObject({
       error: {
         data: {
@@ -177,6 +183,7 @@ describe("evaluateJsonRpcRequest", () => {
       rawMessageId: 4,
       mode: "balanced"
     });
+    expect(result.approvalRequiredDecision).toBeUndefined();
     expect(result.auditEvent).toMatchObject({
       decision: "ALLOW",
       severity: "info",
