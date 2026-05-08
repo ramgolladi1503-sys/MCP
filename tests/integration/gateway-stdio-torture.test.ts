@@ -44,7 +44,7 @@ describe("gateway stdio protocol torture tests", () => {
     });
 
     expect(result.shouldForward).toBe(false);
-    expect(result.response).toEqual({
+    expect(result.response).toMatchObject({
       jsonrpc: "2.0",
       id: 7,
       error: {
@@ -53,7 +53,10 @@ describe("gateway stdio protocol torture tests", () => {
         data: {
           event_id: "evt_test",
           rule_id: "protocol.invalid_tool_call_shape",
-          severity: "high"
+          severity: "high",
+          reason: "tools/call params must include name and arguments object",
+          suggested_fix: "Send a valid MCP tools/call request with params.name and params.arguments.",
+          safe_alternative: "Send a valid MCP tools/call request with params.name and params.arguments."
         }
       }
     });

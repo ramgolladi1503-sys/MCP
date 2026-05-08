@@ -22,10 +22,11 @@
     "test:corpus": "vitest run tests/corpus",
     "test:smoke": "node scripts/smoke-test.mjs",
     "test:hardening": "pnpm test:unit && pnpm test:integration && pnpm test:corpus && pnpm test:smoke",
+    "release:dry-run": "node scripts/release-publish-dry-run.mjs",
     "doctor": "pnpm --filter @mcp-shield/cli mcp-shield doctor",
     "policy:check": "pnpm --filter @mcp-shield/cli mcp-shield policy check examples/policies/coding-agent.yaml",
     "security:secrets": "gitleaks detect --source . --no-banner --redact || true",
-    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:smoke"
+    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:smoke && pnpm release:dry-run"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",

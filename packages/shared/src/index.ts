@@ -81,7 +81,7 @@ export const MCP_SHIELD_BLOCKED_ERROR_CODE = -32001;
 
 export function blockedJsonRpcResponse(
   id: string | number | null,
-  decision: Pick<PolicyDecision, "ruleId" | "severity">,
+  decision: Pick<PolicyDecision, "ruleId" | "severity"> & Partial<Pick<PolicyDecision, "reason" | "suggestedFix" | "matched">>,
   eventId: string
 ): JsonRpcErrorResponse {
   return {
@@ -90,15 +90,23 @@ export function blockedJsonRpcResponse(
     error: {
       code: MCP_SHIELD_BLOCKED_ERROR_CODE,
       message: "MCP Shield blocked this tool call",
-      data: {
+      data: compactRecord({
         event_id: eventId,
         rule_id: decision.ruleId,
-        severity: decision.severity
-      }
+        severity: decision.severity,
+        reason: decision.reason,
+        suggested_fix: decision.suggestedFix,
+        safe_alternative: decision.suggestedFix,
+        matched: decision.matched
+      })
     }
   };
 }
 
 export function nowIso(): string {
   return new Date().toISOString();
+}
+
+function compactRecord(input: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
+  return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
 }
