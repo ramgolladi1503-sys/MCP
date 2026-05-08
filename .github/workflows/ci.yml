@@ -56,24 +56,25 @@ jobs:
       - name: Run hardening test suite
         run: pnpm test:hardening
 
-      - name: Validate CLI package dry-run
-        run: pnpm --filter @mcp-shield/cli pack --dry-run
-
       - name: Smoke built CLI binary
         run: |
           set -euo pipefail
           node packages/cli/dist/index.js --help
           node packages/cli/dist/index.js policy check examples/policies/coding-agent.yaml
 
-      - name: Validate release tarball contents
+      - name: Validate CLI release tarball contents
         run: |
           set -euo pipefail
           package_dir="$(mktemp -d)"
-          pnpm --filter @mcp-shield/cli pack --pack-destination "$package_dir"
+          (
+            cd packages/cli
+            pnpm pack --pack-destination "$package_dir"
+          )
           package_file="$(find "$package_dir" -name '*.tgz' -print -quit)"
           test -n "$package_file"
           tar -tf "$package_file" | grep -q '^package/package.json$'
           tar -tf "$package_file" | grep -q '^package/dist/index.js$'
+          tar -tf "$package_file" | grep -q '^package/dist/index.d.ts$'
 
       - name: Verify unsafe scanner exit contract
         run: |
