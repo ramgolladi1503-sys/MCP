@@ -5,7 +5,16 @@ import { dirname, isAbsolute, join } from "node:path";
 import { explainAuditEvent, formatReplaySummary, parseAuditJsonl, replayAuditEvents } from "@mcp-shield/audit";
 import { formatConfigStatus, getConfigStatus, initProtectedConfig, restoreLatestBackup } from "@mcp-shield/config-adapter";
 import type { SupportedMcpClient } from "@mcp-shield/config-adapter";
-import { startStdioGateway } from "@mcp-shield/gateway";
+import {
+  approveRequest,
+  defaultApprovalStoreDir,
+  denyRequest,
+  formatApprovalList,
+  formatApprovalRequest,
+  listApprovalRequests,
+  readApprovalRequest,
+  startStdioGateway
+} from "@mcp-shield/gateway";
 import { formatPolicyCheck, loadPolicyFromYaml } from "@mcp-shield/policy";
 import type { RuntimeMode } from "@mcp-shield/shared";
 import { formatScanReport, scanMcpConfigJson, stringifyScanReport } from "@mcp-shield/scanner";
@@ -19,6 +28,7 @@ const commands: Record<string, string> = {
   scan: "Scan an MCP config for risky servers, metadata, schemas, and drift",
   init: "Rewrite an MCP client config through MCP Shield with backup and rollback state",
   gateway: "Start the stdio MCP gateway",
+  approval: "List, inspect, approve, or deny approval requests",
   doctor: "Run local installation and configuration diagnostics",
   explain: "Explain one audit event decision",
   replay: "Summarize a JSONL audit file",
@@ -41,6 +51,11 @@ async function main(): Promise<void> {
 
   if (command === "policy") {
     await runPolicy(cliArgs.slice(1));
+    return;
+  }
+
+  if (command === "approval") {
+    await runApproval(cliArgs.slice(1));
     return;
   }
 
@@ -134,6 +149,59 @@ async function runPolicy(args: readonly string[]): Promise<void> {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown policy failure";
     console.error(`Policy check failed: ${message}`);
+    process.exitCode = 1;
+  }
+}
+
+async function runApproval(args: readonly string[]): Promise<void> {
+  const subcommand = args[0] ?? "list";
+  const storeDir = getOption(args, "--dir") ?? defaultApprovalStoreDir();
+
+  try {
+    if (subcommand === "list") {
+      process.stdout.write(`${formatApprovalList(await listApprovalRequests(storeDir))}\n`);
+      return;
+    }
+
+    if (subcommand === "show") {
+      const id = firstPositional(args.slice(1));
+      if (!id) {
+        console.error("Usage: mcp-shield approval show <approval_id> [--dir path]");
+        process.exitCode = 1;
+        return;
+      }
+      const request = await readApprovalRequest(storeDir, id);
+      if (!request) {
+        console.error(`Approval request not found: ${id}`);
+        process.exitCode = 1;
+        return;
+      }
+      process.stdout.write(`${formatApprovalRequest(request)}\n`);
+      return;
+    }
+
+    if (subcommand === "approve" || subcommand === "deny") {
+      const id = firstPositional(args.slice(1));
+      if (!id) {
+        console.error(`Usage: mcp-shield approval ${subcommand} <approval_id> [--reason text] [--dir path]`);
+        process.exitCode = 1;
+        return;
+      }
+      const reason = getOption(args, "--reason") ?? undefined;
+      const decided =
+        subcommand === "approve"
+          ? await approveRequest({ storeDir, id, reason })
+          : await denyRequest({ storeDir, id, reason });
+      process.stdout.write(`${formatApprovalRequest(decided)}\n`);
+      return;
+    }
+
+    console.error("Unsupported approval command.");
+    console.error("Usage: mcp-shield approval list|show|approve|deny [args] [--dir path]");
+    process.exitCode = 1;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown approval failure";
+    console.error(`Approval command failed: ${message}`);
     process.exitCode = 1;
   }
 }
@@ -246,6 +314,10 @@ function getOption(args: readonly string[], name: string): string | null {
   return args[index + 1] ?? null;
 }
 
+function firstPositional(args: readonly string[]): string | null {
+  return args.find((arg, index) => !arg.startsWith("-") && args[index - 1] !== "--dir" && args[index - 1] !== "--reason") ?? null;
+}
+
 async function readCliFile(inputPath: string): Promise<{ readonly path: string; readonly text: string }> {
   let missingError: unknown;
 
@@ -311,7 +383,7 @@ function printHelp(): void {
     .map(([name, description]) => `  ${name.padEnd(10)} ${description}`)
     .join("\n");
 
-  process.stdout.write(`MCP Shield\n\nUsage:\n  mcp-shield <command> [options]\n\nCommands:\n${rows}\n\nExamples:\n  mcp-shield scan ./mcp.json\n  mcp-shield scan ./mcp.json --json\n  mcp-shield policy check ./coding-agent.yaml\n  mcp-shield gateway --policy ./coding-agent.yaml --mode strict -- node ./server.js\n  mcp-shield init --client custom --config ./mcp.json\n  mcp-shield status --client custom --config ./mcp.json\n  mcp-shield rollback --client custom --config ./mcp.json\n  mcp-shield replay .mcp-shield/audit.jsonl\n  mcp-shield explain .mcp-shield/audit.jsonl evt_123\n`);
+  process.stdout.write(`MCP Shield\n\nUsage:\n  mcp-shield <command> [options]\n\nCommands:\n${rows}\n\nExamples:\n  mcp-shield scan ./mcp.json\n  mcp-shield scan ./mcp.json --json\n  mcp-shield policy check ./coding-agent.yaml\n  mcp-shield gateway --policy ./coding-agent.yaml --mode strict -- node ./server.js\n  mcp-shield approval list\n  mcp-shield approval show apr_123\n  mcp-shield approval approve apr_123 --reason "Reviewed command and branch"\n  mcp-shield approval deny apr_123 --reason "Unexpected production target"\n  mcp-shield init --client custom --config ./mcp.json\n  mcp-shield status --client custom --config ./mcp.json\n  mcp-shield rollback --client custom --config ./mcp.json\n  mcp-shield replay .mcp-shield/audit.jsonl\n  mcp-shield explain .mcp-shield/audit.jsonl evt_123\n`);
 }
 
 await main();
