@@ -1,0 +1,113 @@
+name: Guarded Release Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: "Exact package version expected for this release, for example 0.1.0"
+        required: true
+        type: string
+      publish:
+        description: "Actually publish to npm. Leave false for validation-only release rehearsal."
+        required: true
+        default: false
+        type: boolean
+      confirmation:
+        description: "Type PUBLISH_MCP_SHIELD to allow npm publish when publish=true"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: guarded-release-publish
+  cancel-in-progress: false
+
+jobs:
+  release-gate:
+    name: Guarded npm release gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: npm-production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate dispatch confirmation
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.publish }}" = "true" ] && [ "${{ inputs.confirmation }}" != "PUBLISH_MCP_SHIELD" ]; then
+            echo "publish=true requires confirmation=PUBLISH_MCP_SHIELD"
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+
+      - name: Install with locked dependency graph
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify release metadata
+        run: node scripts/release-verify.mjs
+        env:
+          MCP_SHIELD_EXPECTED_VERSION: ${{ inputs.expected_version }}
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Run hardening test suite
+        run: pnpm test:hardening
+
+      - name: Run publish dry-run
+        run: pnpm -r --filter './packages/*' publish --dry-run --no-git-checks --access public
+
+      - name: Validate packed CLI install surface
+        run: |
+          set -euo pipefail
+          package_dir="$(mktemp -d)"
+          install_dir="$(mktemp -d)"
+          (
+            cd packages/cli
+            pnpm pack --pack-destination "$package_dir"
+          )
+          package_file="$(find "$package_dir" -name '*.tgz' -print -quit)"
+          test -n "$package_file"
+          tar -tf "$package_file" | grep -q '^package/package.json$'
+          tar -tf "$package_file" | grep -q '^package/dist/index.js$'
+          tar -tf "$package_file" | grep -q '^package/dist/index.d.ts$'
+          npm install --prefix "$install_dir" "$package_file"
+          node "$install_dir/node_modules/@mcp-shield/cli/dist/index.js" --help
+
+      - name: Publish workspace packages to npm
+        if: ${{ inputs.publish == true }}
+        run: pnpm -r --filter './packages/*' publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Post-publish npm smoke check
+        if: ${{ inputs.publish == true }}
+        run: |
+          set -euo pipefail
+          npm view @mcp-shield/cli@${{ inputs.expected_version }} version
+          npm view @mcp-shield/shared@${{ inputs.expected_version }} version
+          npm view @mcp-shield/policy@${{ inputs.expected_version }} version
+          npm view @mcp-shield/gateway@${{ inputs.expected_version }} version
+          npm view @mcp-shield/audit@${{ inputs.expected_version }} version
+          npm view @mcp-shield/scanner@${{ inputs.expected_version }} version
+          npm view @mcp-shield/config-adapter@${{ inputs.expected_version }} version
