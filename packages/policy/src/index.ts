@@ -9,8 +9,8 @@ export interface PolicyConfig {
   readonly allowedPathExceptions: readonly string[];
   readonly blockedCommands: readonly string[];
   readonly approvalRequired: readonly string[];
-  readonly blockedSql: readonly string[];
-  readonly approvalRequiredSql: readonly string[];
+  readonly blockedSql?: readonly string[];
+  readonly approvalRequiredSql?: readonly string[];
   readonly allowedDomains: readonly string[];
   readonly denyUnknownDomains: boolean;
   readonly featureFlags: FeatureFlags;
@@ -182,8 +182,8 @@ export function compilePolicy(input: unknown): CompiledPolicy {
     allowedPathExceptions: stringList(read(input, "allowed_path_exceptions", "allowedPathExceptions"), DEFAULT_POLICY.allowedPathExceptions),
     blockedCommands: stringList(read(input, "blocked_commands", "blockedCommands"), DEFAULT_POLICY.blockedCommands),
     approvalRequired: stringList(read(input, "approval_required", "approvalRequired"), DEFAULT_POLICY.approvalRequired),
-    blockedSql: stringList(read(input, "blocked_sql", "blockedSql"), DEFAULT_POLICY.blockedSql).map(normalizeSqlPattern),
-    approvalRequiredSql: stringList(read(input, "approval_required_sql", "approvalRequiredSql"), DEFAULT_POLICY.approvalRequiredSql).map(normalizeSqlPattern),
+    blockedSql: stringList(read(input, "blocked_sql", "blockedSql"), DEFAULT_POLICY.blockedSql ?? []).map(normalizeSqlPattern),
+    approvalRequiredSql: stringList(read(input, "approval_required_sql", "approvalRequiredSql"), DEFAULT_POLICY.approvalRequiredSql ?? []).map(normalizeSqlPattern),
     allowedDomains: stringList(read(input, "allowed_domains", "allowedDomains"), DEFAULT_POLICY.allowedDomains).map(normalizeDomain).filter(isString),
     denyUnknownDomains: booleanValue(read(input, "deny_unknown_domains", "denyUnknownDomains"), DEFAULT_POLICY.denyUnknownDomains),
     featureFlags: featureFlagsValue(read(input, "feature_flags", "featureFlags"))
@@ -337,13 +337,13 @@ export function decideToolCall(policy: PolicyConfig, context: ToolCallContext): 
     });
   }
 
-  if (sqlCandidate && matchesAny(normalizeSqlStatement(sqlCandidate), policy.blockedSql)) {
+  if (sqlCandidate && matchesAny(normalizeSqlStatement(sqlCandidate), policy.blockedSql ?? [])) {
     return block("sql.blocked", "Attempted execution of a blocked SQL statement pattern", {
       query: summarizeSql(sqlCandidate)
     }, "Use a read-only SELECT query, a transaction-wrapped dry run, or a reviewed migration workflow instead.");
   }
 
-  if (sqlCandidate && matchesAny(normalizeSqlStatement(sqlCandidate), policy.approvalRequiredSql)) {
+  if (sqlCandidate && matchesAny(normalizeSqlStatement(sqlCandidate), policy.approvalRequiredSql ?? [])) {
     return approveByMode(context.mode, "sql.approval_required", "SQL statement requires explicit approval", {
       query: summarizeSql(sqlCandidate)
     });
