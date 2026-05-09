@@ -81,13 +81,9 @@ describe("approval web console", () => {
 
 function startConsole(params: { readonly storeDir: string; readonly port: number }): { readonly child: ReturnType<typeof spawn>; readonly stdoutChunks: string[]; readonly stderrChunks: string[] } {
   const child = spawn(
-    "pnpm",
+    "node",
     [
-      "--filter",
-      "@mcp-shield/cli",
-      "exec",
-      "tsx",
-      "src/index.ts",
+      "packages/cli/dist/index.js",
       "approval",
       "serve",
       "--dir",

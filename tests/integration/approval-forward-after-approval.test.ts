@@ -134,16 +134,12 @@ function startGateway(params: {
   readonly approvalTtlMs: number;
 }): { readonly child: ReturnType<typeof spawn>; readonly stdoutLines: string[]; readonly stderrChunks: string[]; readonly stdin: NodeJS.WritableStream } {
   const child = spawn(
-    "pnpm",
+    "node",
     [
-      "--filter",
-      "@mcp-shield/cli",
-      "exec",
-      "tsx",
-      "src/index.ts",
+      "packages/cli/dist/index.js",
       "gateway",
       "--policy",
-      "../../examples/policies/coding-agent.yaml",
+      "examples/policies/coding-agent.yaml",
       "--mode",
       "balanced",
       "--server-name",
@@ -160,7 +156,7 @@ function startGateway(params: {
       String(params.approvalTtlMs),
       "--",
       "node",
-      "../../tests/fixtures/approval-child-mcp-server.mjs",
+      "tests/fixtures/approval-child-mcp-server.mjs",
       params.childCallLog
     ],
     {

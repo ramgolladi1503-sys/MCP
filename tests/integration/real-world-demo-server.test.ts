@@ -140,16 +140,12 @@ function startGateway(params: {
   readonly childCallLog: string;
 }): { readonly child: ReturnType<typeof spawn>; readonly stdoutLines: string[]; readonly stderrChunks: string[]; readonly stdin: NodeJS.WritableStream } {
   const child = spawn(
-    "pnpm",
+    "node",
     [
-      "--filter",
-      "@mcp-shield/cli",
-      "exec",
-      "tsx",
-      "src/index.ts",
+      "packages/cli/dist/index.js",
       "gateway",
       "--policy",
-      "../../examples/policies/real-world-demo.yaml",
+      "examples/policies/real-world-demo.yaml",
       "--mode",
       "balanced",
       "--server-name",
@@ -166,7 +162,7 @@ function startGateway(params: {
       "10000",
       "--",
       "node",
-      "../../examples/real-world-mcp-server/index.js",
+      "examples/real-world-mcp-server/index.js",
       params.childCallLog
     ],
     {
