@@ -11,6 +11,8 @@ const basePolicy: PolicyConfig = {
   allowedPathExceptions: [".env.example"],
   blockedCommands: ["rm -rf*", "sudo*", "curl *--data*"],
   approvalRequired: ["git push*", "npm install*"],
+  blockedSql: ["DROP *", "TRUNCATE *", "ALTER *"],
+  approvalRequiredSql: ["INSERT *", "UPDATE *", "DELETE *"],
   allowedDomains: ["github.com", "api.github.com"],
   denyUnknownDomains: true,
   featureFlags: {
@@ -81,6 +83,44 @@ describe("decideToolCall", () => {
 
     expect(decision.decision).toBe("BLOCK");
     expect(decision.severity).toBe("high");
+  });
+
+  it("allows read-only SQL queries", () => {
+    const decision = decideToolCall(basePolicy, context({ query: "select id, name from users limit 10" }));
+
+    expect(decision.decision).toBe("ALLOW");
+    expect(decision.ruleId).toBe("default.allow");
+  });
+
+  it("blocks destructive SQL statements", () => {
+    const decision = decideToolCall(basePolicy, context({ query: "/* migration */ DROP TABLE users;" }));
+
+    expect(decision.decision).toBe("BLOCK");
+    expect(decision.ruleId).toBe("sql.blocked");
+    expect(decision.matched).toEqual({ query: "DROP TABLE USERS" });
+    expect(decision.suggestedFix).toContain("SELECT");
+  });
+
+  it("requires approval for write SQL statements in balanced mode", () => {
+    const decision = decideToolCall(basePolicy, context({ sql: "update accounts set status = 'locked' where id = 1" }, "balanced"));
+
+    expect(decision.decision).toBe("APPROVE");
+    expect(decision.ruleId).toBe("sql.approval_required");
+    expect(decision.severity).toBe("high");
+  });
+
+  it("turns approval-required SQL into warnings in audit-only mode", () => {
+    const decision = decideToolCall(basePolicy, context({ statement: "delete from sessions where expired = true" }, "audit-only"));
+
+    expect(decision.decision).toBe("WARN");
+    expect(decision.reason).toContain("Would require approval");
+  });
+
+  it("turns approval-required SQL into blocks in strict mode", () => {
+    const decision = decideToolCall(basePolicy, context({ query: "insert into audit_log(id) values (1)" }, "strict"));
+
+    expect(decision.decision).toBe("BLOCK");
+    expect(decision.ruleId).toBe("sql.approval_required");
   });
 
   it("allows network egress to exact allowlisted domains", () => {

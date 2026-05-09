@@ -9,6 +9,8 @@ export interface PolicyConfig {
   readonly allowedPathExceptions: readonly string[];
   readonly blockedCommands: readonly string[];
   readonly approvalRequired: readonly string[];
+  readonly blockedSql?: readonly string[];
+  readonly approvalRequiredSql?: readonly string[];
   readonly allowedDomains: readonly string[];
   readonly denyUnknownDomains: boolean;
   readonly featureFlags: FeatureFlags;
@@ -73,6 +75,8 @@ export const DEFAULT_POLICY: PolicyConfig = {
   allowedPathExceptions: [".env.example"],
   blockedCommands: ["rm -rf*", "sudo*", "chmod 777*", "curl *--data*", "wget *--post-data*", "scp*", "ssh*"],
   approvalRequired: ["git push*", "git reset --hard*", "npm install*", "pip install*", "docker build*", "docker run*"],
+  blockedSql: ["DROP *", "TRUNCATE *", "ALTER *"],
+  approvalRequiredSql: ["INSERT *", "UPDATE *", "DELETE *"],
   allowedDomains: ["github.com", "api.github.com"],
   denyUnknownDomains: true,
   featureFlags: DEFAULT_FEATURE_FLAGS
@@ -93,6 +97,10 @@ const KNOWN_POLICY_KEYS = new Set([
   "blockedCommands",
   "approval_required",
   "approvalRequired",
+  "blocked_sql",
+  "blockedSql",
+  "approval_required_sql",
+  "approvalRequiredSql",
   "allowed_domains",
   "allowedDomains",
   "deny_unknown_domains",
@@ -103,6 +111,7 @@ const KNOWN_POLICY_KEYS = new Set([
 
 const URL_VALUE_ARG_KEYS = ["url", "uri", "endpoint"] as const;
 const HOST_VALUE_ARG_KEYS = ["host", "domain"] as const;
+const SQL_VALUE_ARG_KEYS = ["query", "sql", "statement"] as const;
 
 export function loadPolicyFromYaml(text: string): CompiledPolicy {
   let parsed: unknown;
@@ -173,6 +182,8 @@ export function compilePolicy(input: unknown): CompiledPolicy {
     allowedPathExceptions: stringList(read(input, "allowed_path_exceptions", "allowedPathExceptions"), DEFAULT_POLICY.allowedPathExceptions),
     blockedCommands: stringList(read(input, "blocked_commands", "blockedCommands"), DEFAULT_POLICY.blockedCommands),
     approvalRequired: stringList(read(input, "approval_required", "approvalRequired"), DEFAULT_POLICY.approvalRequired),
+    blockedSql: stringList(read(input, "blocked_sql", "blockedSql"), DEFAULT_POLICY.blockedSql ?? []).map(normalizeSqlPattern),
+    approvalRequiredSql: stringList(read(input, "approval_required_sql", "approvalRequiredSql"), DEFAULT_POLICY.approvalRequiredSql ?? []).map(normalizeSqlPattern),
     allowedDomains: stringList(read(input, "allowed_domains", "allowedDomains"), DEFAULT_POLICY.allowedDomains).map(normalizeDomain).filter(isString),
     denyUnknownDomains: booleanValue(read(input, "deny_unknown_domains", "denyUnknownDomains"), DEFAULT_POLICY.denyUnknownDomains),
     featureFlags: featureFlagsValue(read(input, "feature_flags", "featureFlags"))
@@ -308,6 +319,7 @@ export function decideToolCall(policy: PolicyConfig, context: ToolCallContext): 
   }
 
   const commandCandidate = extractStringArg(context.arguments, "command");
+  const sqlCandidate = extractSqlCandidate(context.arguments);
   const egressDecision = decideNetworkEgress(policy, context.arguments, commandCandidate);
   if (egressDecision) {
     return egressDecision;
@@ -322,6 +334,18 @@ export function decideToolCall(policy: PolicyConfig, context: ToolCallContext): 
   if (commandCandidate && matchesAny(commandCandidate, policy.approvalRequired)) {
     return approveByMode(context.mode, "command.approval_required", "Command requires explicit approval", {
       command: summarizeCommand(commandCandidate)
+    });
+  }
+
+  if (sqlCandidate && matchesAny(normalizeSqlStatement(sqlCandidate), policy.blockedSql ?? [])) {
+    return block("sql.blocked", "Attempted execution of a blocked SQL statement pattern", {
+      query: summarizeSql(sqlCandidate)
+    }, "Use a read-only SELECT query, a transaction-wrapped dry run, or a reviewed migration workflow instead.");
+  }
+
+  if (sqlCandidate && matchesAny(normalizeSqlStatement(sqlCandidate), policy.approvalRequiredSql ?? [])) {
+    return approveByMode(context.mode, "sql.approval_required", "SQL statement requires explicit approval", {
+      query: summarizeSql(sqlCandidate)
     });
   }
 
@@ -375,6 +399,17 @@ export function extractEgressHosts(args: Readonly<Record<string, unknown>>, comm
   }
 
   return hosts.map(normalizeDomain).filter(isString);
+}
+
+function extractSqlCandidate(args: Readonly<Record<string, unknown>>): string | null {
+  for (const key of SQL_VALUE_ARG_KEYS) {
+    const value = args[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+  }
+
+  return null;
 }
 
 function extractUrlHosts(text: string): readonly string[] {
@@ -460,11 +495,24 @@ function matchesAny(value: string, patterns: readonly string[]): boolean {
 
 function wildcardToRegex(pattern: string): RegExp {
   const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
-  return new RegExp(`^${escaped}$`);
+  return new RegExp(`^${escaped}$`, "i");
 }
 
 function summarizeCommand(command: string): string {
   return command.length <= 120 ? command : `${command.slice(0, 117)}...`;
+}
+
+function summarizeSql(query: string): string {
+  const normalized = normalizeSqlStatement(query);
+  return normalized.length <= 160 ? normalized : `${normalized.slice(0, 157)}...`;
+}
+
+function normalizeSqlPattern(pattern: string): string {
+  return normalizeSqlStatement(pattern);
+}
+
+function normalizeSqlStatement(query: string): string {
+  return query.replace(/--.*$/gm, " ").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\s+/g, " ").trim().replace(/;$/, "").toUpperCase();
 }
 
 function read(record: Readonly<Record<string, unknown>>, snake: string, camel: string): unknown {
