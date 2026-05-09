@@ -32,11 +32,30 @@ pnpm --filter @mcp-shield/cli dev -- gateway \
 
 ## Watch approvals in another terminal
 
+CLI watcher:
+
 ```bash
 pnpm --filter @mcp-shield/cli dev -- approval watch \
   --dir /tmp/mcp-shield-real-world-demo/approvals \
   --interval-ms 1000
 ```
+
+Browser approval console:
+
+```bash
+pnpm --filter @mcp-shield/cli dev -- approval serve \
+  --dir /tmp/mcp-shield-real-world-demo/approvals \
+  --host 127.0.0.1 \
+  --port 6277
+```
+
+Open:
+
+```text
+http://127.0.0.1:6277
+```
+
+Use the browser console for demo approvals when you want a product-like workflow. Use the CLI watcher when you want raw terminal proof.
 
 ## Send JSON-RPC messages manually
 
@@ -60,7 +79,7 @@ Paste one line at a time into the gateway terminal.
 {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"git.push","arguments":{"command":"git push origin main"}}}
 ```
 
-Approve from the watcher output, or run:
+Approve from the browser console, watcher output, or run:
 
 ```bash
 pnpm --filter @mcp-shield/cli dev -- approval list --dir /tmp/mcp-shield-real-world-demo/approvals
@@ -164,10 +183,27 @@ Copy the generated `mcpServers` object into Claude Desktop's config and restart 
 
 ### Watch approvals while the client is running
 
+CLI watcher:
+
 ```bash
 pnpm --filter @mcp-shield/cli dev -- approval watch \
   --dir /tmp/mcp-shield-live-client-demo/approvals \
   --interval-ms 1000
+```
+
+Browser approval console:
+
+```bash
+pnpm --filter @mcp-shield/cli dev -- approval serve \
+  --dir /tmp/mcp-shield-live-client-demo/approvals \
+  --host 127.0.0.1 \
+  --port 6277
+```
+
+Open:
+
+```text
+http://127.0.0.1:6277
 ```
 
 ### Ask the client to trigger the demo tools
@@ -186,7 +222,7 @@ Use the MCP Shield real-world demo MCP server to run git status.
 Use the MCP Shield real-world demo MCP server to push to origin main.
 ```
 
-Approve the generated request from the watcher output:
+Approve the generated request from the browser console or from the watcher output:
 
 ```bash
 pnpm --filter @mcp-shield/cli dev -- approval approve <approval_id> \
