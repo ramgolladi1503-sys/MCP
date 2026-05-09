@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
@@ -10,8 +10,10 @@ import {
   formatApprovalList,
   hashApprovalPayload,
   listApprovalRequests,
-  readApprovalRequest
+  readApprovalRequest,
+  verifyApprovalRecordIntegrity
 } from "../../../packages/gateway/src/index";
+import type { ApprovalRequest } from "../../../packages/gateway/src/index";
 import type { PolicyDecision, ToolCallContext } from "../../../packages/shared/src/index";
 
 const decision: PolicyDecision = {
@@ -49,6 +51,8 @@ describe("approval broker", () => {
 
       expect(request.id).toMatch(/^apr_/);
       expect(request.requestHash).toBe(hashApprovalPayload(context, decision.ruleId));
+      expect(request.recordHash).toMatch(/^[a-f0-9]{64}$/);
+      expect(verifyApprovalRecordIntegrity(request)).toBe(true);
       expect(readBack).toMatchObject({
         id: request.id,
         status: "pending",
@@ -90,16 +94,76 @@ describe("approval broker", () => {
       const approved = await approveRequest({ storeDir: approveStore, id: approval.id, reason: "Reviewed target branch" });
       expect(approved.status).toBe("approved");
       expect(approved.reason).toBe("Reviewed target branch");
+      expect(approved.recordHash).not.toBe(approval.recordHash);
+      expect(verifyApprovalRecordIntegrity(approved)).toBe(true);
       await expect(denyRequest({ storeDir: approveStore, id: approval.id })).rejects.toThrow("already approved");
 
       const denial = await createApprovalRequest({ storeDir: denyStore, context, decision, ttlMs: 60_000 });
       const denied = await denyRequest({ storeDir: denyStore, id: denial.id, reason: "Unexpected main branch push" });
       expect(denied.status).toBe("denied");
       expect(denied.reason).toBe("Unexpected main branch push");
+      expect(verifyApprovalRecordIntegrity(denied)).toBe(true);
       await expect(approveRequest({ storeDir: denyStore, id: denial.id })).rejects.toThrow("already denied");
     } finally {
       await rm(approveStore, { recursive: true, force: true });
       await rm(denyStore, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects approval files when status is manually tampered", async () => {
+    const storeDir = await tempStore();
+    try {
+      const request = await createApprovalRequest({ storeDir, context, decision, ttlMs: 60_000 });
+      const path = join(storeDir, `${request.id}.json`);
+      const parsed = JSON.parse(await readFile(path, "utf8")) as ApprovalRequest;
+      await writeFile(path, `${JSON.stringify({ ...parsed, status: "approved" }, null, 2)}\n`, "utf8");
+
+      await expect(readApprovalRequest(storeDir, request.id)).rejects.toThrow("integrity check failed");
+      await expect(approveRequest({ storeDir, id: request.id })).rejects.toThrow("integrity check failed");
+    } finally {
+      await rm(storeDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects approval files when sanitized arguments are manually tampered", async () => {
+    const storeDir = await tempStore();
+    try {
+      const request = await createApprovalRequest({ storeDir, context, decision, ttlMs: 60_000 });
+      const path = join(storeDir, `${request.id}.json`);
+      const parsed = JSON.parse(await readFile(path, "utf8")) as ApprovalRequest;
+      await writeFile(
+        path,
+        `${JSON.stringify(
+          {
+            ...parsed,
+            argumentsSummary: { ...parsed.argumentsSummary, command: "git push origin production" }
+          },
+          null,
+          2
+        )}\n`,
+        "utf8"
+      );
+
+      await expect(readApprovalRequest(storeDir, request.id)).rejects.toThrow("integrity check failed");
+    } finally {
+      await rm(storeDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps legacy unsigned approval records readable", async () => {
+    const storeDir = await tempStore();
+    try {
+      const request = await createApprovalRequest({ storeDir, context, decision, ttlMs: 60_000 });
+      const path = join(storeDir, `${request.id}.json`);
+      const parsed = JSON.parse(await readFile(path, "utf8")) as ApprovalRequest;
+      const legacy = Object.fromEntries(Object.entries(parsed).filter(([key]) => key !== "recordHash"));
+      await writeFile(path, `${JSON.stringify(legacy, null, 2)}\n`, "utf8");
+
+      await expect(readApprovalRequest(storeDir, request.id)).resolves.toMatchObject({ id: request.id, status: "pending" });
+      const approved = await approveRequest({ storeDir, id: request.id, reason: "legacy upgraded on write" });
+      expect(approved.recordHash).toMatch(/^[a-f0-9]{64}$/);
+    } finally {
+      await rm(storeDir, { recursive: true, force: true });
     }
   });
 
