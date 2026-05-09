@@ -115,13 +115,117 @@ Expected decisions include:
 - `APPROVAL_APPROVED`
 - `APPROVAL_FORWARDED`
 
-## Claude Desktop / Cursor validation shape
+## Live Claude Desktop / Cursor demo config
 
-Use the same `examples/policies/real-world-demo.yaml` policy and wrap the demo MCP server through MCP Shield in the client config. Then ask the client to perform the same safe, approval-gated, and blocked actions.
+The manual JSON-RPC flow above is still useful for deterministic debugging. For a real client demo, generate a ready MCP client config instead of hand-editing one by memory.
 
-The key proof is not the chat answer. The proof is:
+### Build first
 
-1. Approval appears in `approval watch`.
-2. Approved requests appear in the child call log only after approval.
-3. Blocked requests never appear in the child call log.
-4. Audit replay shows the full decision chain.
+```bash
+pnpm install --frozen-lockfile
+pnpm build
+```
+
+The generated config points to `packages/cli/dist/index.js`, so using it before `pnpm build` is a bad demo path.
+
+### Generate Cursor config
+
+```bash
+rm -rf /tmp/mcp-shield-live-client-demo
+mkdir -p /tmp/mcp-shield-live-client-demo
+
+node scripts/generate-live-client-demo-config.mjs \
+  --client cursor \
+  --demo-dir /tmp/mcp-shield-live-client-demo \
+  --output /tmp/mcp-shield-live-client-demo/cursor-mcp.json \
+  --server-name mcp-shield-real-world-demo
+
+cat /tmp/mcp-shield-live-client-demo/cursor-mcp.json
+```
+
+Copy the generated JSON into Cursor's MCP config, or use it as the exact server entry if you are merging it into an existing config.
+
+### Generate Claude Desktop config
+
+```bash
+rm -rf /tmp/mcp-shield-live-client-demo
+mkdir -p /tmp/mcp-shield-live-client-demo
+
+node scripts/generate-live-client-demo-config.mjs \
+  --client claude-desktop \
+  --demo-dir /tmp/mcp-shield-live-client-demo \
+  --output /tmp/mcp-shield-live-client-demo/claude-desktop-mcp.json \
+  --server-name mcp-shield-real-world-demo
+
+cat /tmp/mcp-shield-live-client-demo/claude-desktop-mcp.json
+```
+
+Copy the generated `mcpServers` object into Claude Desktop's config and restart Claude Desktop.
+
+### Watch approvals while the client is running
+
+```bash
+pnpm --filter @mcp-shield/cli dev -- approval watch \
+  --dir /tmp/mcp-shield-live-client-demo/approvals \
+  --interval-ms 1000
+```
+
+### Ask the client to trigger the demo tools
+
+Use prompts that map directly to the demo server tools:
+
+1. Safe read path:
+
+```text
+Use the MCP Shield real-world demo MCP server to run git status.
+```
+
+2. Approval path:
+
+```text
+Use the MCP Shield real-world demo MCP server to push to origin main.
+```
+
+Approve the generated request from the watcher output:
+
+```bash
+pnpm --filter @mcp-shield/cli dev -- approval approve <approval_id> \
+  --dir /tmp/mcp-shield-live-client-demo/approvals \
+  --reason "Live demo approval after reviewing target branch"
+```
+
+3. Block path:
+
+```text
+Use the MCP Shield real-world demo MCP server to run sudo ./demo-workspace/maintenance.sh.
+```
+
+4. SQL approval path:
+
+```text
+Use the MCP Shield real-world demo MCP server to update user 1 to admin.
+```
+
+5. SQL block path:
+
+```text
+Use the MCP Shield real-world demo MCP server to alter the users table and add a demo_flag column.
+```
+
+### Prove the client demo actually worked
+
+The chat answer is not proof. The files are proof.
+
+```bash
+cat /tmp/mcp-shield-live-client-demo/child-calls.jsonl
+pnpm --filter @mcp-shield/cli dev -- replay /tmp/mcp-shield-live-client-demo/audit.jsonl
+```
+
+Expected proof:
+
+1. Safe calls appear in `child-calls.jsonl`.
+2. Approved calls appear in `child-calls.jsonl` only after approval.
+3. Blocked calls are absent from `child-calls.jsonl`.
+4. Audit replay shows `APPROVAL_REQUESTED`, `APPROVAL_APPROVED`, and `APPROVAL_FORWARDED` for approved risky calls.
+
+If the client claims it performed a blocked action but the child call log does not contain that request, MCP Shield did its job. Do not judge the demo by model wording; judge it by the child-call proof log and audit events.
