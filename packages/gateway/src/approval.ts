@@ -16,6 +16,7 @@ export interface ApprovalRequest {
   readonly decidedBy?: string;
   readonly reason?: string;
   readonly requestHash: string;
+  readonly recordHash?: string;
   readonly sessionId: string;
   readonly serverName: string;
   readonly toolName: string;
@@ -58,7 +59,7 @@ export async function createApprovalRequest(input: CreateApprovalRequestInput): 
   const expiresAt = new Date(Date.now() + (input.ttlMs ?? DEFAULT_TTL_MS)).toISOString();
   const requestHash = hashApprovalPayload(input.context, input.decision.ruleId);
 
-  const request: ApprovalRequest = {
+  const request: ApprovalRequest = withRecordHash({
     schemaVersion: "1.0",
     id: `apr_${randomUUID()}`,
     status: "pending",
@@ -75,7 +76,7 @@ export async function createApprovalRequest(input: CreateApprovalRequestInput): 
     policyReason: input.decision.reason,
     ...(input.decision.suggestedFix ? { suggestedFix: input.decision.suggestedFix } : {}),
     argumentsSummary: sanitizeArgs(input.context.arguments)
-  };
+  });
 
   await writeApprovalRequest(input.storeDir, request);
   return request;
@@ -152,6 +153,14 @@ export function hashApprovalPayload(context: ToolCallContext, ruleId: string): s
   });
 }
 
+export function verifyApprovalRecordIntegrity(request: ApprovalRequest): boolean {
+  if (!request.recordHash) {
+    return true;
+  }
+
+  return request.recordHash === hashApprovalRecord(request);
+}
+
 export function formatApprovalRequest(request: ApprovalRequest): string {
   const lines = [
     `Approval: ${request.id}`,
@@ -166,6 +175,9 @@ export function formatApprovalRequest(request: ApprovalRequest): string {
     `Args: ${JSON.stringify(request.argumentsSummary)}`
   ];
 
+  if (request.recordHash) {
+    lines.push(`Record hash: ${request.recordHash}`);
+  }
   if (request.suggestedFix) {
     lines.push(`Suggested fix: ${request.suggestedFix}`);
   }
@@ -207,13 +219,13 @@ async function decideRequest(input: ApprovalDecisionInput, status: "approved" | 
     throw new Error(`Approval request ${input.id} is already ${current.status}`);
   }
 
-  const decided: ApprovalRequest = {
-    ...current,
+  const decided: ApprovalRequest = withRecordHash({
+    ...stripRecordHash(current),
     status,
     decidedAt: nowIso(),
     decidedBy: input.decidedBy ?? "local-user",
     ...(input.reason ? { reason: input.reason } : {})
-  };
+  });
   await writeApprovalRequest(input.storeDir, decided);
   return decided;
 }
@@ -223,6 +235,9 @@ async function readApprovalRequestFromPath(path: string): Promise<ApprovalReques
     const parsed = JSON.parse(await readFile(path, "utf8"));
     if (!isApprovalRequest(parsed)) {
       return null;
+    }
+    if (!verifyApprovalRecordIntegrity(parsed)) {
+      throw new Error(`Approval request integrity check failed: ${parsed.id}`);
     }
     return parsed;
   } catch (error) {
@@ -237,12 +252,13 @@ async function writeApprovalRequest(storeDir: string, request: ApprovalRequest):
   await ensureStoreDir(storeDir);
   const path = approvalPath(storeDir, request.id);
   const tempPath = `${path}.${process.pid}.tmp`;
-  await writeFile(tempPath, `${JSON.stringify(request, null, 2)}\n`, "utf8");
+  const signed = withRecordHash(stripRecordHash(request));
+  await writeFile(tempPath, `${JSON.stringify(signed, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   await rename(tempPath, path);
 }
 
 async function ensureStoreDir(storeDir: string): Promise<void> {
-  await mkdir(storeDir, { recursive: true });
+  await mkdir(storeDir, { recursive: true, mode: 0o700 });
 }
 
 function approvalPath(storeDir: string, id: string): string {
@@ -255,7 +271,7 @@ function markExpiredIfNeeded(request: ApprovalRequest): ApprovalRequest {
   }
 
   if (Date.parse(request.expiresAt) <= Date.now()) {
-    return { ...request, status: "expired", decidedAt: nowIso(), reason: "Approval request expired before decision." };
+    return withRecordHash({ ...stripRecordHash(request), status: "expired", decidedAt: nowIso(), reason: "Approval request expired before decision." });
   }
 
   return request;
@@ -286,6 +302,27 @@ function summarizeValue(value: unknown): unknown {
   return value;
 }
 
+function withRecordHash(request: Omit<ApprovalRequest, "recordHash">): ApprovalRequest {
+  return {
+    ...request,
+    recordHash: hashApprovalRecord(request)
+  };
+}
+
+function stripRecordHash(request: ApprovalRequest): Omit<ApprovalRequest, "recordHash"> {
+  const { recordHash: _recordHash, ...unsigned } = request;
+  return unsigned;
+}
+
+function hashApprovalRecord(request: Omit<ApprovalRequest, "recordHash"> | ApprovalRequest): string {
+  return hashStable(stripRecordHashIfPresent(request));
+}
+
+function stripRecordHashIfPresent(request: Omit<ApprovalRequest, "recordHash"> | ApprovalRequest): Omit<ApprovalRequest, "recordHash"> {
+  const { recordHash: _recordHash, ...unsigned } = request as ApprovalRequest;
+  return unsigned;
+}
+
 function hashStable(value: unknown): string {
   return createHash("sha256").update(stableStringify(value)).digest("hex");
 }
@@ -309,8 +346,15 @@ function isApprovalRequest(value: unknown): value is ApprovalRequest {
     value !== null &&
     (value as { readonly schemaVersion?: unknown }).schemaVersion === "1.0" &&
     typeof (value as { readonly id?: unknown }).id === "string" &&
-    typeof (value as { readonly status?: unknown }).status === "string"
+    typeof (value as { readonly status?: unknown }).status === "string" &&
+    isApprovalStatus((value as { readonly status?: unknown }).status) &&
+    typeof (value as { readonly requestHash?: unknown }).requestHash === "string" &&
+    (typeof (value as { readonly recordHash?: unknown }).recordHash === "undefined" || typeof (value as { readonly recordHash?: unknown }).recordHash === "string")
   );
+}
+
+function isApprovalStatus(value: unknown): value is ApprovalStatus {
+  return value === "pending" || value === "approved" || value === "denied" || value === "expired";
 }
 
 function sleep(ms: number): Promise<void> {
