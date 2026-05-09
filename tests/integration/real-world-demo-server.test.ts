@@ -50,7 +50,7 @@ describe("real-world Git/Shell/DB demo server through gateway", () => {
       expect(await readChildCalls(childCallLog)).toHaveLength(1);
 
       const approval = (await listApprovalRequests(approvalDir)).find((request) => request.rawMessageId === 3);
-      expect(approval).toMatchObject({ status: "pending", toolName: "git.push" });
+      expect(approval).toMatchObject({ status: "pending", toolName: "git.push", ruleId: "command.approval_required" });
       await approveRequest({ storeDir: approvalDir, id: approval!.id, reason: "demo approved git push" });
 
       await waitFor(() => gateway.stdoutLines.some((line) => parseMessage(line).id === 3), 8000, () => gateway.stderrChunks.join(""));
@@ -64,7 +64,7 @@ describe("real-world Git/Shell/DB demo server through gateway", () => {
           jsonrpc: "2.0",
           id: 4,
           method: "tools/call",
-          params: { name: "shell.run", arguments: { command: "rm -rf ./demo-workspace" } }
+          params: { name: "shell.run", arguments: { command: "sudo ./demo-workspace/maintenance.sh" } }
         })}\n`
       );
       await waitFor(() => gateway.stdoutLines.some((line) => parseMessage(line).id === 4), 8000, () => gateway.stderrChunks.join(""));
@@ -113,7 +113,7 @@ describe("real-world Git/Shell/DB demo server through gateway", () => {
           jsonrpc: "2.0",
           id: 7,
           method: "tools/call",
-          params: { name: "db.query", arguments: { query: "drop table users" } }
+          params: { name: "db.query", arguments: { query: "alter table users add column demo_flag boolean" } }
         })}\n`
       );
       await waitFor(() => gateway.stdoutLines.some((line) => parseMessage(line).id === 7), 8000, () => gateway.stderrChunks.join(""));
@@ -123,9 +123,9 @@ describe("real-world Git/Shell/DB demo server through gateway", () => {
 
       const auditEvents = parseAuditJsonl(await readFile(auditFile, "utf8"));
       expect(auditEvents.map((event) => event.ruleId)).toEqual(
-        expect.arrayContaining(["default.allow", "approval.required_not_granted", "command.blocked", "sql.approval_required", "sql.blocked"])
+        expect.arrayContaining(["default.allow", "approval.required_not_granted", "command.blocked", "sql.blocked"])
       );
-      expect(auditEvents.map((event) => event.decision)).toEqual(expect.arrayContaining(["APPROVAL_FORWARDED"]));
+      expect(auditEvents.map((event) => event.decision)).toEqual(expect.arrayContaining(["APPROVAL_REQUESTED", "APPROVAL_APPROVED", "APPROVAL_FORWARDED"]));
     } finally {
       gateway.child.kill("SIGTERM");
       await waitForExit(gateway.child, 5000).catch(() => undefined);
