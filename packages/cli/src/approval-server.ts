@@ -7,7 +7,6 @@ import {
   listApprovalRequests,
   readApprovalRequest
 } from "@mcp-shield/gateway";
-import type { ApprovalRequest } from "@mcp-shield/gateway";
 
 export interface ApprovalConsoleOptions {
   readonly storeDir: string;
