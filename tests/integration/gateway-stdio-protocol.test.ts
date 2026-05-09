@@ -50,47 +50,48 @@ describe("stdio gateway protocol harness", () => {
       stderrChunks.push(chunk);
     });
 
-    child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} })}\n`);
-    child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })}\n`);
-    child.stdin.write(
-      `${JSON.stringify({
-        jsonrpc: "2.0",
-        id: 3,
-        method: "tools/call",
-        params: { name: "filesystem.read_file", arguments: { path: "README.md" } }
-      })}\n`
-    );
-    child.stdin.write(
-      `${JSON.stringify({
-        jsonrpc: "2.0",
-        id: 4,
-        method: "tools/call",
-        params: { name: "filesystem.read_file", arguments: { path: ".env" } }
-      })}\n`
-    );
+    try {
+      child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} })}\n`);
+      child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })}\n`);
+      child.stdin.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
+          id: 3,
+          method: "tools/call",
+          params: { name: "filesystem.read_file", arguments: { path: "README.md" } }
+        })}\n`
+      );
+      child.stdin.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
+          id: 4,
+          method: "tools/call",
+          params: { name: "filesystem.read_file", arguments: { path: ".env" } }
+        })}\n`
+      );
 
-    await waitFor(() => stdoutLines.length >= 4, 8000, () => `stdout=${stdoutLines.join("\n")}\nstderr=${stderrChunks.join("")}`);
+      await waitFor(() => stdoutLines.length >= 4, 8000, () => `stdout=${stdoutLines.join("\n")}\nstderr=${stderrChunks.join("")}`);
 
-    child.kill("SIGTERM");
-    await waitForExit(child, 5000);
+      const messages = stdoutLines.map((line) => JSON.parse(line) as JsonRpcMessage);
+      expect(messages.every((message) => message.jsonrpc === "2.0")).toBe(true);
+      expect(messages.find((message) => message.id === 1)?.result).toBeDefined();
+      expect(messages.find((message) => message.id === 2)?.result).toBeDefined();
+      expect(messages.find((message) => message.id === 3)?.result).toBeDefined();
+      expect(messages.find((message) => message.id === 4)?.error?.code).toBe(-32001);
 
-    const messages = stdoutLines.map((line) => JSON.parse(line) as JsonRpcMessage);
-    expect(messages.every((message) => message.jsonrpc === "2.0")).toBe(true);
-    expect(messages.find((message) => message.id === 1)?.result).toBeDefined();
-    expect(messages.find((message) => message.id === 2)?.result).toBeDefined();
-    expect(messages.find((message) => message.id === 3)?.result).toBeDefined();
-    expect(messages.find((message) => message.id === 4)?.error?.code).toBe(-32001);
+      for (const line of stdoutLines) {
+        expect(line.trim().startsWith("{")).toBe(true);
+        expect(() => JSON.parse(line)).not.toThrow();
+      }
 
-    for (const line of stdoutLines) {
-      expect(line.trim().startsWith("{")).toBe(true);
-      expect(() => JSON.parse(line)).not.toThrow();
+      const auditText = await readFile(auditFile, "utf8");
+      expect(auditText).toContain("secret.path.blocked");
+      expect(stderrChunks.join("")).not.toContain("Command '");
+    } finally {
+      child.stdin.end();
+      await terminateProcess(child, 5000);
+      await rm(tempDir, { recursive: true, force: true });
     }
-
-    const auditText = await readFile(auditFile, "utf8");
-    expect(auditText).toContain("secret.path.blocked");
-    expect(stderrChunks.join("")).not.toContain("Command '");
-
-    await rm(tempDir, { recursive: true, force: true });
   }, 15000);
 });
 
@@ -105,9 +106,28 @@ async function waitFor(assertion: () => boolean, timeoutMs: number, describeStat
   throw new Error(`Timed out waiting for condition${describeState ? `\n${describeState()}` : ""}`);
 }
 
-async function waitForExit(child: ReturnType<typeof spawn>, timeoutMs: number): Promise<void> {
-  await Promise.race([
-    new Promise<void>((resolve) => child.once("exit", () => resolve())),
-    new Promise<void>((_, reject) => setTimeout(() => reject(new Error("Timed out waiting for process exit")), timeoutMs))
+async function terminateProcess(child: ReturnType<typeof spawn>, timeoutMs: number): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return;
+  }
+
+  child.kill("SIGTERM");
+  const exited = await waitForProcessExit(child, timeoutMs).catch(() => false);
+  if (exited) {
+    return;
+  }
+
+  child.kill("SIGKILL");
+  await waitForProcessExit(child, timeoutMs);
+}
+
+async function waitForProcessExit(child: ReturnType<typeof spawn>, timeoutMs: number): Promise<boolean> {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return true;
+  }
+
+  return Promise.race([
+    new Promise<boolean>((resolve) => child.once("exit", () => resolve(true))),
+    new Promise<boolean>((_, reject) => setTimeout(() => reject(new Error("Timed out waiting for process exit")), timeoutMs))
   ]);
 }
