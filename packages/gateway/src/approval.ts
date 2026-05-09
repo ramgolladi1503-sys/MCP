@@ -310,8 +310,7 @@ function withRecordHash(request: Omit<ApprovalRequest, "recordHash">): ApprovalR
 }
 
 function stripRecordHash(request: ApprovalRequest): Omit<ApprovalRequest, "recordHash"> {
-  const { recordHash: _recordHash, ...unsigned } = request;
-  return unsigned;
+  return stripRecordHashIfPresent(request);
 }
 
 function hashApprovalRecord(request: Omit<ApprovalRequest, "recordHash"> | ApprovalRequest): string {
@@ -319,8 +318,7 @@ function hashApprovalRecord(request: Omit<ApprovalRequest, "recordHash"> | Appro
 }
 
 function stripRecordHashIfPresent(request: Omit<ApprovalRequest, "recordHash"> | ApprovalRequest): Omit<ApprovalRequest, "recordHash"> {
-  const { recordHash: _recordHash, ...unsigned } = request as ApprovalRequest;
-  return unsigned;
+  return Object.fromEntries(Object.entries(request).filter(([key]) => key !== "recordHash")) as Omit<ApprovalRequest, "recordHash">;
 }
 
 function hashStable(value: unknown): string {
