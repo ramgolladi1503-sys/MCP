@@ -19,6 +19,7 @@ import type { ApprovalRequest } from "@mcp-shield/gateway";
 import { formatPolicyCheck, loadPolicyFromYaml } from "@mcp-shield/policy";
 import type { RuntimeMode } from "@mcp-shield/shared";
 import { formatScanReport, scanMcpConfigJson, stringifyScanReport } from "@mcp-shield/scanner";
+import { startApprovalConsole } from "./approval-server.js";
 
 const rawArgs = process.argv.slice(2);
 const cliArgs = rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs;
@@ -29,7 +30,7 @@ const commands: Record<string, string> = {
   scan: "Scan an MCP config for risky servers, metadata, schemas, and drift",
   init: "Rewrite an MCP client config through MCP Shield with backup and rollback state",
   gateway: "Start the stdio MCP gateway",
-  approval: "List, watch, inspect, approve, or deny approval requests",
+  approval: "List, watch, serve, inspect, approve, or deny approval requests",
   doctor: "Run local installation and configuration diagnostics",
   explain: "Explain one audit event decision",
   replay: "Summarize a JSONL audit file",
@@ -169,6 +170,11 @@ async function runApproval(args: readonly string[]): Promise<void> {
       return;
     }
 
+    if (subcommand === "serve") {
+      await runApprovalServe(args, storeDir);
+      return;
+    }
+
     if (subcommand === "show") {
       const id = firstPositional(args.slice(1));
       if (!id) {
@@ -203,13 +209,22 @@ async function runApproval(args: readonly string[]): Promise<void> {
     }
 
     console.error("Unsupported approval command.");
-    console.error("Usage: mcp-shield approval list|watch|show|approve|deny [args] [--dir path]");
+    console.error("Usage: mcp-shield approval list|watch|serve|show|approve|deny [args] [--dir path]");
     process.exitCode = 1;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown approval failure";
     console.error(`Approval command failed: ${message}`);
     process.exitCode = 1;
   }
+}
+
+async function runApprovalServe(args: readonly string[], storeDir: string): Promise<void> {
+  const host = getOption(args, "--host") ?? "127.0.0.1";
+  const port = parseOptionalPositiveInteger(getOption(args, "--port"), "--port") ?? 6277;
+  if (host !== "127.0.0.1" && host !== "localhost") {
+    throw new Error("approval serve only allows --host 127.0.0.1 or localhost for local safety.");
+  }
+  await startApprovalConsole({ storeDir, host, port });
 }
 
 async function runApprovalWatch(args: readonly string[], storeDir: string): Promise<void> {
@@ -419,7 +434,9 @@ function firstPositional(args: readonly string[]): string | null {
         !arg.startsWith("-") &&
         args[index - 1] !== "--dir" &&
         args[index - 1] !== "--reason" &&
-        args[index - 1] !== "--interval-ms"
+        args[index - 1] !== "--interval-ms" &&
+        args[index - 1] !== "--host" &&
+        args[index - 1] !== "--port"
     ) ?? null
   );
 }
@@ -523,7 +540,7 @@ function printHelp(): void {
     .map(([name, description]) => `  ${name.padEnd(10)} ${description}`)
     .join("\n");
 
-  process.stdout.write(`MCP Shield\n\nUsage:\n  mcp-shield <command> [options]\n\nCommands:\n${rows}\n\nExamples:\n  mcp-shield scan ./mcp.json\n  mcp-shield scan ./mcp.json --json\n  mcp-shield policy check ./coding-agent.yaml\n  mcp-shield gateway --policy ./coding-agent.yaml --mode strict -- node ./server.js\n  mcp-shield gateway --policy ./coding-agent.yaml --mode balanced --approval-wait-ms 30000 -- node ./server.js\n  mcp-shield approval list\n  mcp-shield approval watch --dir .mcp-shield/approvals\n  mcp-shield approval watch --once --dir .mcp-shield/approvals\n  mcp-shield approval show apr_123\n  mcp-shield approval approve apr_123 --reason "Reviewed command and branch"\n  mcp-shield approval deny apr_123 --reason "Unexpected production target"\n  mcp-shield init --client custom --config ./mcp.json\n  mcp-shield status --client custom --config ./mcp.json\n  mcp-shield rollback --client custom --config ./mcp.json\n  mcp-shield replay .mcp-shield/audit.jsonl\n  mcp-shield explain .mcp-shield/audit.jsonl evt_123\n`);
+  process.stdout.write(`MCP Shield\n\nUsage:\n  mcp-shield <command> [options]\n\nCommands:\n${rows}\n\nExamples:\n  mcp-shield scan ./mcp.json\n  mcp-shield scan ./mcp.json --json\n  mcp-shield policy check ./coding-agent.yaml\n  mcp-shield gateway --policy ./coding-agent.yaml --mode strict -- node ./server.js\n  mcp-shield gateway --policy ./coding-agent.yaml --mode balanced --approval-wait-ms 30000 -- node ./server.js\n  mcp-shield approval list\n  mcp-shield approval watch --dir .mcp-shield/approvals\n  mcp-shield approval serve --dir .mcp-shield/approvals --port 6277\n  mcp-shield approval watch --once --dir .mcp-shield/approvals\n  mcp-shield approval show apr_123\n  mcp-shield approval approve apr_123 --reason "Reviewed command and branch"\n  mcp-shield approval deny apr_123 --reason "Unexpected production target"\n  mcp-shield init --client custom --config ./mcp.json\n  mcp-shield status --client custom --config ./mcp.json\n  mcp-shield rollback --client custom --config ./mcp.json\n  mcp-shield replay .mcp-shield/audit.jsonl\n  mcp-shield explain .mcp-shield/audit.jsonl evt_123\n`);
 }
 
 await main();
