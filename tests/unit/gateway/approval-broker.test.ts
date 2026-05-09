@@ -155,7 +155,8 @@ describe("approval broker", () => {
     try {
       const request = await createApprovalRequest({ storeDir, context, decision, ttlMs: 60_000 });
       const path = join(storeDir, `${request.id}.json`);
-      const { recordHash: _recordHash, ...legacy } = JSON.parse(await readFile(path, "utf8")) as ApprovalRequest;
+      const parsed = JSON.parse(await readFile(path, "utf8")) as ApprovalRequest;
+      const legacy = Object.fromEntries(Object.entries(parsed).filter(([key]) => key !== "recordHash"));
       await writeFile(path, `${JSON.stringify(legacy, null, 2)}\n`, "utf8");
 
       await expect(readApprovalRequest(storeDir, request.id)).resolves.toMatchObject({ id: request.id, status: "pending" });
