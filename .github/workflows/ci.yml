@@ -71,9 +71,11 @@ jobs:
           )
           package_file="$(find "$package_dir" -name '*.tgz' -print -quit)"
           test -n "$package_file"
-          tar -tf "$package_file" | grep -q '^package/package.json$'
-          tar -tf "$package_file" | grep -q '^package/dist/index.js$'
-          tar -tf "$package_file" | grep -q '^package/dist/index.d.ts$'
+          manifest="$package_dir/tarball-files.txt"
+          tar -tf "$package_file" > "$manifest"
+          grep -qx 'package/package.json' "$manifest"
+          grep -qx 'package/dist/index.js' "$manifest"
+          grep -qx 'package/dist/index.d.ts' "$manifest"
 
       - name: Run guarded publish dry-run
         run: pnpm release:dry-run
