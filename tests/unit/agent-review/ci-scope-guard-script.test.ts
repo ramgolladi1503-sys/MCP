@@ -20,7 +20,9 @@ describe("agent-review CI scope guard script", () => {
   });
 
   it("fails closed for pull-request events without event payload path", () => {
-    const { GITHUB_EVENT_PATH: _githubEventPath, ...envWithoutEventPath } = process.env;
+    const envWithoutEventPath = { ...process.env };
+    delete envWithoutEventPath.GITHUB_EVENT_PATH;
+
     const result = spawnSync(process.execPath, [SCRIPT_PATH], {
       cwd: process.cwd(),
       encoding: "utf8",
