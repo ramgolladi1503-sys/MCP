@@ -172,6 +172,177 @@ area_rules:
       - scope is explicit
       - future runtime proof stated if relevant
 
+review_agents:
+  scope_lock:
+    label: Scope Lock Agent
+    required_for:
+      - docs_only
+      - release
+      - config_adapter
+    required_sections:
+      - Scope Guard
+    required_proof:
+      - scope is explicit
+  repo_cartographer:
+    label: Repo Cartographer Agent
+    required_for:
+      - gateway
+      - policy
+      - audit
+      - approval
+      - scanner
+      - cli
+      - config_adapter
+      - observability
+      - release
+      - docs_only
+    required_sections:
+      - Hermes Review
+    required_proof:
+      - scope is explicit
+  runtime_boundary:
+    label: MCP Runtime Boundary Agent
+    required_for:
+      - gateway
+      - approval
+      - observability
+    required_sections:
+      - Security Review
+      - QA / Failure Review
+    required_proof:
+      - protocol test
+      - stdout purity
+      - timeout behavior
+  execution_boundary:
+    label: Child Forwarding Boundary Agent
+    required_for:
+      - gateway
+    required_sections:
+      - Security Review
+      - QA / Failure Review
+    required_proof:
+      - block before forward proof
+  risk_gating:
+    label: Policy Decision Agent
+    required_for:
+      - policy
+    required_sections:
+      - Security Review
+      - QA / Failure Review
+    required_proof:
+      - mode matrix
+      - fail-closed test
+  safety_boundary:
+    label: Safety Boundary Agent
+    required_for:
+      - gateway
+      - policy
+      - approval
+      - scanner
+    required_sections:
+      - Security Review
+    required_proof:
+      - fail-closed test
+      - false-positive test
+  evidence_replay:
+    label: Audit Evidence Agent
+    required_for:
+      - audit
+      - observability
+    required_sections:
+      - Acceptance Proof
+    required_proof:
+      - hash-chain test
+      - tamper or replay test
+  security_review:
+    label: Security Review Agent
+    required_for:
+      - gateway
+      - policy
+      - audit
+      - approval
+      - scanner
+      - config_adapter
+    required_sections:
+      - Security Review
+    required_proof:
+      - fail-closed test
+  qa_failure:
+    label: QA Failure Agent
+    required_for:
+      - gateway
+      - policy
+      - audit
+      - approval
+      - scanner
+      - cli
+      - config_adapter
+      - observability
+    required_sections:
+      - QA / Failure Review
+    required_proof:
+      - fail-closed test
+      - false-positive test
+  human_approval_gate:
+    label: Human Approval Gate
+    required_for:
+      - approval
+    required_sections:
+      - Human Approval
+    required_proof:
+      - create approval
+      - approve
+      - deny
+      - expire
+  no_test_weakening:
+    label: No-Test-Weakening Agent
+    required_for:
+      - gateway
+      - policy
+      - audit
+      - approval
+      - scanner
+    required_sections:
+      - QA / Failure Review
+    required_proof:
+      - no test weakening
+  ci_release_guard:
+    label: CI / Release Guard Agent
+    required_for:
+      - release
+    required_sections:
+      - Scope Guard
+      - Acceptance Proof
+    required_proof:
+      - publish dry-run proof
+      - no accidental real publish proof
+  docs_runbook:
+    label: Docs / Runbook Agent
+    required_for:
+      - docs_only
+    required_sections:
+      - What This PR Does Not Prove
+    required_proof:
+      - no runtime claims
+      - future runtime proof stated if relevant
+  data_freshness:
+    label: Config Freshness Agent
+    required_for:
+      - config_adapter
+    required_sections:
+      - QA / Failure Review
+    required_proof:
+      - backup proof
+      - rollback proof
+  gsd:
+    label: GSD Reviewer
+    required_for:
+      - "*"
+    required_sections:
+      - GSD Review
+    required_proof:
+      - scope is explicit
+
 required_default_commands:
   - pnpm install --frozen-lockfile
   - pnpm build
