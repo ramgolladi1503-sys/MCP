@@ -38,9 +38,10 @@ export function parseAgentReviewEvidenceMarkdown(markdown: string, path = "agent
 
     if (heading.level === 1 && title === path) {
       title = heading.text;
+      continue;
     }
 
-    if (heading.level === 2) {
+    if (heading.level === 2 || heading.level === 3) {
       if (currentSection) {
         sections.push(buildEvidenceSection(currentSection, lines, index - 1));
       }
@@ -69,21 +70,9 @@ export function parseAgentReviewEvidenceMarkdown(markdown: string, path = "agent
 
 export function parseAgentReviewEvidenceContractFields(markdown: string): AgentReviewEvidenceContract | undefined {
   const normalizedMarkdown = markdown.replace(/\r\n/g, "\n");
-  const lines = normalizedMarkdown.split("\n");
-  const evidenceContractFieldsStart = lines.findIndex((line) => /^###\s+Evidence Contract Fields\s*$/i.test(line.trim()));
-
-  if (evidenceContractFieldsStart === -1) {
-    return undefined;
-  }
-
   const fields: Record<string, string> = {};
 
-  for (let index = evidenceContractFieldsStart + 1; index < lines.length; index += 1) {
-    const line = lines[index] ?? "";
-    if (/^#{1,3}\s+/.test(line.trim())) {
-      break;
-    }
-
+  for (const line of normalizedMarkdown.split("\n")) {
     const match = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*):\s*(.*)$/);
     if (!match) {
       continue;
