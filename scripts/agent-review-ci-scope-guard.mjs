@@ -39,10 +39,11 @@ if (evidenceCandidates.length !== 1) {
 const evidencePath = evidenceCandidates[0];
 const validatorPath = join(projectRoot, "packages/agent-review/dist/validator-cli.js");
 if (!existsSync(validatorPath)) {
-  fail(`Built Agent Review validator CLI not found: ${validatorPath}. Run pnpm build first.`);
+  fail(`Built Agent Review validator CLI not found: ${validatorPath}. Run pnpm typecheck first.`);
 }
 
 const validatorArgs = [
+  "--experimental-specifier-resolution=node",
   validatorPath,
   "--project-root",
   projectRoot,
