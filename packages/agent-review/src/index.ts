@@ -225,7 +225,9 @@ export async function findAgentReviewConfigPath(
 
 export function parseAgentReviewConfigText(text: string, sourcePath = "agent-review.yaml"): AgentReviewConfig {
   const parsed = sourcePath.endsWith(".json") ? parseJsonConfig(text, sourcePath) : parseYamlSubsetConfig(text, sourcePath);
-  return normalizeAgentReviewConfig(parsed, sourcePath);
+  const config = normalizeAgentReviewConfig(parsed, sourcePath);
+  validateAgentReviewConfig(config, sourcePath);
+  return config;
 }
 
 export function validateAgentReviewConfig(config: AgentReviewConfig, sourcePath = "agent-review.yaml"): readonly string[] {
