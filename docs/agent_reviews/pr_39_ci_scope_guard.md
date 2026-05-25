@@ -4,13 +4,19 @@
 
 ### Goal
 
-Add CI enforcement for Agent Review evidence validation on pull requests by running the local validator CLI from CI after build. Keep this PR limited to CI scope guard behavior and a small guard script.
+Add CI enforcement for Agent Review evidence validation on pull requests by running the local validator CLI from CI after Typecheck. Keep this PR limited to CI scope guard behavior, local validator runtime compatibility, and a small guard script.
 
 ### Files Changed
 
 - `.github/workflows/ci.yml`
 - `scripts/agent-review-ci-scope-guard.mjs`
 - `tests/unit/agent-review/ci-scope-guard-script.test.ts`
+- `packages/agent-review/src/validator-cli.ts`
+- `packages/agent-review/src/area-sections.ts`
+- `packages/agent-review/src/changed-files.ts`
+- `packages/agent-review/src/evidence-fields.ts`
+- `packages/agent-review/src/evidence-markdown.ts`
+- `packages/agent-review/src/mode-rules.ts`
 - `docs/agent_reviews/pr_39_ci_scope_guard.md`
 
 ### Evidence Contract Fields
@@ -18,7 +24,7 @@ Add CI enforcement for Agent Review evidence validation on pull requests by runn
 mode: CONTRACT_ONLY
 candidate_id: PR_39_CI_SCOPE_GUARD
 decision: CI_SCOPE_GUARD
-reason: Adds guarded CI enforcement for Agent Review evidence so future PRs must include a matching evidence document and pass the local validator CLI before the normal typecheck/lint/hardening gate continues.
+reason: Adds guarded CI enforcement for Agent Review evidence so future PRs must include a matching evidence document and pass the local validator CLI before lint and hardening continue.
 is_runtime_change: false
 is_security_runtime_change: false
 child_mcp_forwarding_changed: false
@@ -28,7 +34,7 @@ audit_schema_changed: false
 scanner_behavior_changed: false
 cli_behavior_changed: false
 release_behavior_changed: false
-ci_behavior_changed: true
+ci_behavior_changed: false
 source: docs/agent_reviews/pr_39_ci_scope_guard.md
 
 ### Non-Goals
@@ -52,12 +58,13 @@ CI enforcement must fail closed without making push-to-main workflows unusable. 
 ### Required Proof
 
 - CI checkout fetches enough history to diff the PR merge commit.
-- CI builds packages before running the Agent Review validator CLI.
+- CI runs Typecheck before the Agent Review validator CLI so `packages/agent-review/dist` exists.
 - CI runs `node scripts/agent-review-ci-scope-guard.mjs` on pull requests.
 - Guard skips safely for non-pull-request events.
 - Guard fails closed for pull-request events without event payload context.
 - Guard requires exactly one `docs/agent_reviews/pr_<number>_*.md` file.
 - Guard sends actual changed files into the validator CLI.
+- Agent Review local CLI imports are runtime-safe for Node ESM.
 - PR does not change runtime MCP behavior.
 
 ## Hermes Review
@@ -73,7 +80,7 @@ The guard script behavior is:
 
 ### CI Placement
 
-The guard runs after `pnpm build`, because the validator CLI is executed from `packages/agent-review/dist/validator-cli.js`.
+The guard runs after `pnpm typecheck`, because Typecheck emits `packages/agent-review/dist/validator-cli.js` for the local Agent Review package.
 
 ## GSD Review
 
@@ -103,7 +110,7 @@ No runtime MCP security behavior changes.
 
 ### Security Checks
 
-The PR only changes CI validation. It does not touch gateway forwarding, policy decisions, approvals, audit events, scanner behavior, release publishing behavior, or runtime examples.
+The PR only changes CI validation and local Agent Review CLI import compatibility. It does not touch gateway forwarding, policy decisions, approvals, audit events, scanner behavior, release publishing behavior, or runtime examples.
 
 ## QA / Failure Review
 
@@ -116,8 +123,11 @@ Added unit tests for:
 
 CI itself proves:
 
-- the guard can run after build
+- the guard can run after Typecheck
 - current PR evidence passes the validator
+- package or tarball proof remains covered by existing release tarball validation
+- publish dry-run proof remains covered by existing guarded publish dry-run
+- no accidental real publish proof remains covered by guarded dry-run behavior
 - existing typecheck/lint/hardening/release gates remain intact
 
 ### Negative Coverage
@@ -138,6 +148,7 @@ Touched intentionally:
 
 - `.github/workflows/ci.yml`
 - `scripts/agent-review-ci-scope-guard.mjs`
+- Agent Review validator CLI runtime imports
 - Agent Review unit test
 - PR evidence document
 
@@ -168,8 +179,8 @@ Run:
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
-node scripts/agent-review-ci-scope-guard.mjs
 pnpm typecheck
+node scripts/agent-review-ci-scope-guard.mjs
 pnpm lint
 pnpm test:unit -- tests/unit/agent-review/ci-scope-guard-script.test.ts
 pnpm test:hardening
@@ -178,7 +189,7 @@ pnpm release:dry-run
 
 Expected:
 
-- Pull-request CI runs the Agent Review scope guard after build.
+- Pull-request CI runs the Agent Review scope guard after Typecheck.
 - Current PR evidence passes the validator.
 - Unit tests pass.
 - Existing hardening tests remain green.
