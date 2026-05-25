@@ -1,0 +1,127 @@
+schema_version: "1.0"
+profile: generic_project
+
+metadata:
+  product: Generic TypeScript Project
+  category: Reusable Agent Review Adapter
+  purpose: Provide a starter Agent Review config for TypeScript repositories that need PR evidence, scope guard rules, and deterministic proof expectations.
+
+required_sections:
+  - Agent Work Contract
+  - Grill Me Review
+  - Hermes Review
+  - GSD Review
+  - Security Review
+  - QA / Failure Review
+  - Scope Guard
+  - Acceptance Proof
+  - Runtime Proof Required After Merge
+  - What This PR Does Not Prove
+  - Human Approval
+
+required_evidence_contract_fields:
+  - mode
+  - candidate_id
+  - decision
+  - reason
+  - is_runtime_change
+  - is_security_runtime_change
+  - child_mcp_forwarding_changed
+  - policy_behavior_changed
+  - approval_behavior_changed
+  - audit_schema_changed
+  - source
+
+optional_evidence_contract_fields:
+  - trace_behavior_changed
+  - scanner_behavior_changed
+  - cli_behavior_changed
+  - config_adapter_behavior_changed
+  - release_behavior_changed
+  - ci_behavior_changed
+
+modes:
+  DOCS_ONLY:
+    runtime_changes_allowed: false
+    product_tests_required: false
+    must_state_no_runtime_claims: true
+  CONTRACT_ONLY:
+    runtime_changes_allowed: false
+    product_tests_required: false
+    must_state_future_runtime_proof: true
+  RUNTIME_CHANGE:
+    runtime_changes_allowed: true
+    product_tests_required: true
+    must_include_negative_tests: true
+  SECURITY_RUNTIME_CHANGE:
+    runtime_changes_allowed: true
+    product_tests_required: true
+    must_include_negative_tests: true
+    must_include_false_positive_tests: true
+    must_include_audit_or_debug_evidence: true
+
+hard_rules:
+  no_fake_progress: true
+  no_unrelated_abstractions: true
+  no_test_weakening: true
+  no_scope_creep: true
+  no_runtime_claims_from_docs_only_pr: true
+  no_unreviewed_ci_changes: true
+  no_unreviewed_release_changes: true
+
+runtime_safety_rules:
+  fail_closed_on_invalid_config: true
+  fail_closed_on_invalid_evidence: true
+  fail_closed_on_missing_required_proof: true
+  never_hide_validation_failures: true
+  never_claim_runtime_safety_without_tests: true
+
+area_rules:
+  source:
+    path_patterns:
+      - "src/**"
+      - "packages/**/src/**"
+    required_proof:
+      - unit test proof
+      - typecheck proof
+      - failure-path proof
+    required_sections:
+      - QA / Failure Review
+      - Scope Guard
+  tests:
+    path_patterns:
+      - "tests/**"
+      - "packages/**/test/**"
+      - "packages/**/tests/**"
+    required_proof:
+      - test proves behavior
+      - no test weakening
+  docs:
+    path_patterns:
+      - "docs/**"
+      - "*.md"
+    required_proof:
+      - no runtime claims
+      - scope is explicit
+      - future runtime proof stated if relevant
+  config:
+    path_patterns:
+      - "package.json"
+      - "tsconfig*.json"
+      - "eslint.config.*"
+      - ".github/workflows/**"
+    required_proof:
+      - config validation proof
+      - no accidental release or CI behavior change
+
+required_default_commands:
+  - pnpm install --frozen-lockfile
+  - pnpm build
+  - pnpm typecheck
+  - pnpm lint
+  - pnpm test
+
+future_enforcement:
+  validator_cli_pr: 38
+  scope_guard_ci_pr: 39
+  changed_file_classifier_pr: 35
