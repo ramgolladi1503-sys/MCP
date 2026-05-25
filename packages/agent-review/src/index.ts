@@ -22,7 +22,7 @@ export type AgentReviewProfile =
   | "algotradify"
   | string;
 
-export type AgentReviewModeName = (typeof REQUIRED_MODE_NAMES)[number];
+export type AgentReviewModeName = "DOCS_ONLY" | "CONTRACT_ONLY" | "RUNTIME_CHANGE" | "SECURITY_RUNTIME_CHANGE";
 
 export type EvidenceBooleanString = "true" | "false";
 
