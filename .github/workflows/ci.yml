@@ -48,11 +48,11 @@ jobs:
       - name: Build packages
         run: pnpm build
 
-      - name: Validate Agent Review scope guard
-        run: node scripts/agent-review-ci-scope-guard.mjs
-
       - name: Typecheck
         run: pnpm typecheck
+
+      - name: Validate Agent Review scope guard
+        run: node scripts/agent-review-ci-scope-guard.mjs
 
       - name: Lint
         run: pnpm lint
