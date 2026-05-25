@@ -18,6 +18,10 @@ import type { AgentReviewRequiredProofResolutionResult } from "./required-proof.
 import { resolveAgentReviewRequiredProof } from "./required-proof.js";
 import type { AgentReviewRequiredSectionValidationResult } from "./required-sections.js";
 import { validateAgentReviewRequiredSections } from "./required-sections.js";
+import type { AgentReviewAgentEvidenceValidationResult } from "./review-agent-evidence.js";
+import { validateAgentReviewAgentEvidence } from "./review-agent-evidence.js";
+import type { AgentReviewRequiredReviewAgentResolutionResult } from "./review-agent-resolver.js";
+import { resolveAgentReviewRequiredReviewAgents } from "./review-agent-resolver.js";
 
 export const AGENT_REVIEW_VALIDATOR_CLI_SCHEMA_VERSION = "agent_review.validator_cli.v1" as const;
 
@@ -35,12 +39,17 @@ export interface AgentReviewValidatorCliReport {
   readonly changed_files: readonly AgentReviewChangedFile[];
   readonly detected_areas: AgentReviewChangedFileClassificationResult["detected_areas"];
   readonly unmatched_files: readonly AgentReviewChangedFile[];
+  readonly required_review_agents: readonly string[];
+  readonly satisfied_review_agents: readonly string[];
+  readonly missing_review_agents: readonly string[];
   readonly checks: {
     readonly required_sections: AgentReviewRequiredSectionValidationResult;
     readonly evidence_fields: AgentReviewEvidenceFieldValidationResult;
     readonly mode_rules: AgentReviewModeRuleValidationResult;
     readonly area_sections: AgentReviewAreaSectionValidationResult;
     readonly required_proof: AgentReviewRequiredProofResolutionResult;
+    readonly review_agent_resolution: AgentReviewRequiredReviewAgentResolutionResult;
+    readonly agent_evidence: AgentReviewAgentEvidenceValidationResult;
   };
   readonly issues: readonly AgentReviewValidationIssue[];
 }
@@ -92,12 +101,18 @@ export async function runAgentReviewValidatorCli(args: readonly string[]): Promi
       evidence,
       detected_areas: changedFileSummary.detected_areas
     });
+    const reviewAgentResolution = resolveAgentReviewRequiredReviewAgents(changedFileSummary.detected_areas, config);
+    const agentEvidence = validateAgentReviewAgentEvidence({
+      evidence,
+      resolved_review_agents: reviewAgentResolution.resolved_review_agents
+    });
     const issues = [
       ...requiredSections.issues,
       ...evidenceFields.issues,
       ...modeRules.issues,
       ...areaSections.issues,
-      ...requiredProof.issues
+      ...requiredProof.issues,
+      ...agentEvidence.issues
     ];
     const report: AgentReviewValidatorCliReport = {
       schema_version: AGENT_REVIEW_VALIDATOR_CLI_SCHEMA_VERSION,
@@ -107,12 +122,17 @@ export async function runAgentReviewValidatorCli(args: readonly string[]): Promi
       changed_files: changedFileSummary.matched_files.concat(changedFileSummary.unmatched_files),
       detected_areas: changedFileSummary.detected_areas,
       unmatched_files: changedFileSummary.unmatched_files,
+      required_review_agents: agentEvidence.required_review_agents,
+      satisfied_review_agents: agentEvidence.satisfied_review_agents,
+      missing_review_agents: agentEvidence.missing_review_agents,
       checks: {
         required_sections: requiredSections,
         evidence_fields: evidenceFields,
         mode_rules: modeRules,
         area_sections: areaSections,
-        required_proof: requiredProof
+        required_proof: requiredProof,
+        review_agent_resolution: reviewAgentResolution,
+        agent_evidence: agentEvidence
       },
       issues
     };
