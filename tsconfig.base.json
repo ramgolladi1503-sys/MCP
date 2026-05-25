@@ -22,6 +22,7 @@
     "baseUrl": ".",
     "paths": {
       "@mcp-shield/shared": ["packages/shared/src/index.ts"],
+      "@mcp-shield/agent-review": ["packages/agent-review/src/index.ts"],
       "@mcp-shield/policy": ["packages/policy/src/index.ts"],
       "@mcp-shield/scanner": ["packages/scanner/src/index.ts"],
       "@mcp-shield/audit": ["packages/audit/src/index.ts"],
