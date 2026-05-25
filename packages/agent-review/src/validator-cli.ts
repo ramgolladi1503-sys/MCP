@@ -1,16 +1,22 @@
 import { isAbsolute, join } from "node:path";
 
+import type { AgentReviewAreaSectionValidationResult } from "./area-sections";
+import { validateAgentReviewAreaSections } from "./area-sections";
+import type { AgentReviewChangedFileClassificationResult } from "./changed-files";
+import { classifyAgentReviewChangedFilesWithSummary } from "./changed-files";
+import type { AgentReviewEvidenceFieldValidationResult } from "./evidence-fields";
+import { validateAgentReviewEvidenceFields } from "./evidence-fields";
+import { loadAgentReviewEvidenceDocument } from "./evidence-markdown";
 import type {
   AgentReviewChangedFile,
   AgentReviewValidationIssue
 } from "./index";
-import { validateAgentReviewAreaSections } from "./area-sections";
-import { classifyAgentReviewChangedFilesWithSummary } from "./changed-files";
-import { validateAgentReviewEvidenceFields } from "./evidence-fields";
-import { loadAgentReviewEvidenceDocument } from "./evidence-markdown";
 import { loadAgentReviewConfig } from "./index";
+import type { AgentReviewModeRuleValidationResult } from "./mode-rules";
 import { validateAgentReviewModeRules } from "./mode-rules";
+import type { AgentReviewRequiredProofResolutionResult } from "./required-proof";
 import { resolveAgentReviewRequiredProof } from "./required-proof";
+import type { AgentReviewRequiredSectionValidationResult } from "./required-sections";
 import { validateAgentReviewRequiredSections } from "./required-sections";
 
 export const AGENT_REVIEW_VALIDATOR_CLI_SCHEMA_VERSION = "agent_review.validator_cli.v1" as const;
@@ -27,14 +33,14 @@ export interface AgentReviewValidatorCliReport {
   readonly config_path: string;
   readonly evidence_path: string;
   readonly changed_files: readonly AgentReviewChangedFile[];
-  readonly detected_areas: readonly unknown[];
+  readonly detected_areas: AgentReviewChangedFileClassificationResult["detected_areas"];
   readonly unmatched_files: readonly AgentReviewChangedFile[];
   readonly checks: {
-    readonly required_sections: ReturnType<typeof validateAgentReviewRequiredSections>;
-    readonly evidence_fields: ReturnType<typeof validateAgentReviewEvidenceFields>;
-    readonly mode_rules: ReturnType<typeof validateAgentReviewModeRules>;
-    readonly area_sections: ReturnType<typeof validateAgentReviewAreaSections>;
-    readonly required_proof: ReturnType<typeof resolveAgentReviewRequiredProof>;
+    readonly required_sections: AgentReviewRequiredSectionValidationResult;
+    readonly evidence_fields: AgentReviewEvidenceFieldValidationResult;
+    readonly mode_rules: AgentReviewModeRuleValidationResult;
+    readonly area_sections: AgentReviewAreaSectionValidationResult;
+    readonly required_proof: AgentReviewRequiredProofResolutionResult;
   };
   readonly issues: readonly AgentReviewValidationIssue[];
 }
