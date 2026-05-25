@@ -467,3 +467,63 @@ function isMutableRecord(value: unknown): value is Record<string, unknown> {
 function formatUnknownError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+export type {
+  AgentReviewAreaSectionExpectation,
+  AgentReviewAreaSectionValidationInput,
+  AgentReviewAreaSectionValidationResult,
+  AgentReviewResolvedAreaSection
+} from "./area-sections.js";
+export { evidenceHasNonEmptyAreaSection, validateAgentReviewAreaSections } from "./area-sections.js";
+
+export type { AgentReviewChangedFileClassificationResult } from "./changed-files.js";
+export {
+  changedFileMatchesPattern,
+  classifyAgentReviewChangedFiles,
+  classifyAgentReviewChangedFilesWithSummary
+} from "./changed-files.js";
+
+export type {
+  AgentReviewEvidenceFieldValidationInput,
+  AgentReviewEvidenceFieldValidationResult
+} from "./evidence-fields.js";
+export {
+  getAgentReviewEvidenceFieldValue,
+  hasAgentReviewEvidenceField,
+  validateAgentReviewEvidenceFields
+} from "./evidence-fields.js";
+
+export { loadAgentReviewEvidenceDocument, parseAgentReviewEvidenceContractFields, parseAgentReviewEvidenceMarkdown } from "./evidence-markdown.js";
+
+export type { AgentReviewModeRuleValidationInput, AgentReviewModeRuleValidationResult } from "./mode-rules.js";
+export { validateAgentReviewModeRules } from "./mode-rules.js";
+
+export type {
+  AgentReviewRequiredProofExpectation,
+  AgentReviewRequiredProofResolutionInput,
+  AgentReviewRequiredProofResolutionResult,
+  AgentReviewResolvedRequiredProof
+} from "./required-proof.js";
+export { evidenceContainsRequiredProof, resolveAgentReviewRequiredProof } from "./required-proof.js";
+
+export type {
+  AgentReviewRequiredSectionValidationInput,
+  AgentReviewRequiredSectionValidationResult
+} from "./required-sections.js";
+export {
+  findAgentReviewEvidenceSection,
+  hasAgentReviewEvidenceSection,
+  validateAgentReviewRequiredSections
+} from "./required-sections.js";
+
+export type {
+  AgentReviewValidatorCliOptions,
+  AgentReviewValidatorCliReport,
+  AgentReviewValidatorCliRunResult
+} from "./validator-cli.js";
+export {
+  AGENT_REVIEW_VALIDATOR_CLI_SCHEMA_VERSION,
+  getAgentReviewValidatorCliHelp,
+  parseAgentReviewValidatorCliArgs,
+  runAgentReviewValidatorCli
+} from "./validator-cli.js";
