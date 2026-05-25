@@ -97,6 +97,7 @@ Touched intentionally:
 
 - Scope Lock Agent: PASS
 - Repo Cartographer Agent: PASS
+- Docs / Runbook Agent: PASS
 - CI / Release Guard Agent: PASS
 - GSD Reviewer: PASS
 
