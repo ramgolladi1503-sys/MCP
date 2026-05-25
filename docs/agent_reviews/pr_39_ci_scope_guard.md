@@ -128,6 +128,9 @@ CI itself proves:
 - package or tarball proof remains covered by existing release tarball validation
 - publish dry-run proof remains covered by existing guarded publish dry-run
 - no accidental real publish proof remains covered by guarded dry-run behavior
+- no runtime claims
+- scope is explicit
+- future runtime proof stated if relevant
 - existing typecheck/lint/hardening/release gates remain intact
 
 ### Negative Coverage
