@@ -178,6 +178,137 @@ area_rules:
       - dependency impact proof
       - no accidental live behavior change
 
+review_agents:
+  scope_lock:
+    label: Scope Lock Agent
+    required_for:
+      - docs
+      - config
+    required_sections:
+      - Scope Guard
+    required_proof:
+      - scope is explicit
+  evidence_replay:
+    label: Evidence / Replay Agent
+    required_for:
+      - strategy
+    required_sections:
+      - Acceptance Proof
+    required_proof:
+      - backtest or replay proof
+      - no profitability claim without evidence
+  qa_failure:
+    label: QA Failure Agent
+    required_for:
+      - strategy
+      - risk
+      - market_data
+      - execution
+      - tests
+    required_sections:
+      - QA / Failure Review
+    required_proof:
+      - failure-path proof
+      - negative-path proof
+  gsd:
+    label: GSD Reviewer
+    required_for:
+      - strategy
+    required_sections:
+      - GSD Review
+    required_proof:
+      - not fake progress
+  risk_gating:
+    label: Risk / Gating Agent
+    required_for:
+      - risk
+    required_sections:
+      - Security Review
+      - QA / Failure Review
+    required_proof:
+      - risk rejection proof
+      - fail-closed proof
+  safety_boundary:
+    label: Safety Boundary Agent
+    required_for:
+      - risk
+    required_sections:
+      - Security Review
+    required_proof:
+      - boundary-condition proof
+      - fail-closed proof
+  security_review:
+    label: Security Review Agent
+    required_for:
+      - risk
+      - execution
+    required_sections:
+      - Security Review
+    required_proof:
+      - no live order path without explicit scope
+  data_freshness:
+    label: Data Freshness Agent
+    required_for:
+      - market_data
+    required_sections:
+      - QA / Failure Review
+    required_proof:
+      - stale-feed proof
+      - missing-data proof
+  runtime_boundary:
+    label: Runtime Boundary Agent
+    required_for:
+      - market_data
+      - execution
+    required_sections:
+      - QA / Failure Review
+      - Human Approval
+    required_proof:
+      - paper-live boundary proof
+      - stale-feed proof
+  execution_boundary:
+    label: Execution Boundary Agent
+    required_for:
+      - execution
+    required_sections:
+      - Security Review
+      - Human Approval
+    required_proof:
+      - no live order path without explicit scope
+      - idempotency or duplicate-order proof
+  human_approval_gate:
+    label: Human Approval Gate
+    required_for:
+      - execution
+    required_sections:
+      - Human Approval
+    required_proof:
+      - paper-live boundary proof
+  no_test_weakening:
+    label: No-Test-Weakening Agent
+    required_for:
+      - tests
+    required_sections:
+      - QA / Failure Review
+    required_proof:
+      - no test weakening
+  docs_runbook:
+    label: Docs / Runbook Agent
+    required_for:
+      - docs
+    required_sections:
+      - What This PR Does Not Prove
+    required_proof:
+      - no runtime claims
+  ci_release_guard:
+    label: CI / Release Guard Agent
+    required_for:
+      - config
+    required_sections:
+      - Scope Guard
+    required_proof:
+      - no accidental live behavior change
+
 required_default_commands:
   - python -m pytest
   - python -m compileall .
