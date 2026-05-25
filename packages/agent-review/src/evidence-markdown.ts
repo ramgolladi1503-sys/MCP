@@ -4,7 +4,7 @@ import type {
   AgentReviewEvidenceContract,
   AgentReviewEvidenceDocument,
   AgentReviewEvidenceSection
-} from "./index";
+} from "./index.js";
 
 interface PendingEvidenceSection {
   readonly heading: string;
@@ -40,102 +40,88 @@ export function parseAgentReviewEvidenceMarkdown(markdown: string, path = "agent
       title = heading.text;
     }
 
-    if (heading.level < 2) {
-      continue;
-    }
+    if (heading.level === 2) {
+      if (currentSection) {
+        sections.push(buildEvidenceSection(currentSection, lines, index - 1));
+      }
 
-    if (currentSection) {
-      sections.push(materializeEvidenceSection(currentSection, lines, index));
+      currentSection = {
+        heading: heading.text,
+        level: heading.level,
+        start_line: index + 1,
+        heading_line_index: index
+      };
     }
-
-    currentSection = {
-      heading: heading.text,
-      level: heading.level,
-      start_line: index + 1,
-      heading_line_index: index
-    };
   }
 
   if (currentSection) {
-    sections.push(materializeEvidenceSection(currentSection, lines, lines.length));
+    sections.push(buildEvidenceSection(currentSection, lines, lines.length - 1));
   }
-
-  const evidenceContractSection = sections.find((section) => normalizeSectionHeading(section.heading) === "evidence contract fields");
-  const evidenceContract = evidenceContractSection
-    ? parseAgentReviewEvidenceContractFields(evidenceContractSection.content)
-    : undefined;
 
   return {
     path,
     title,
     sections,
-    evidence_contract: evidenceContract,
+    evidence_contract: parseAgentReviewEvidenceContractFields(normalizedMarkdown),
     raw_markdown: normalizedMarkdown
   };
 }
 
-export function parseAgentReviewEvidenceContractFields(content: string): AgentReviewEvidenceContract | undefined {
-  const values: Record<string, string> = {};
-  let insideFence = false;
+export function parseAgentReviewEvidenceContractFields(markdown: string): AgentReviewEvidenceContract | undefined {
+  const normalizedMarkdown = markdown.replace(/\r\n/g, "\n");
+  const lines = normalizedMarkdown.split("\n");
+  const evidenceContractFieldsStart = lines.findIndex((line) => /^###\s+Evidence Contract Fields\s*$/i.test(line.trim()));
 
-  for (const rawLine of content.replace(/\r\n/g, "\n").split("\n")) {
-    const line = rawLine.trim();
-    if (line.startsWith("```")) {
-      insideFence = !insideFence;
-      continue;
+  if (evidenceContractFieldsStart === -1) {
+    return undefined;
+  }
+
+  const fields: Record<string, string> = {};
+
+  for (let index = evidenceContractFieldsStart + 1; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    if (/^#{1,3}\s+/.test(line.trim())) {
+      break;
     }
 
-    if (insideFence || line === "" || line.startsWith("- ")) {
-      continue;
-    }
-
-    const match = /^([A-Za-z0-9_]+):\s*(.*)$/.exec(line);
+    const match = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*):\s*(.*)$/);
     if (!match) {
       continue;
     }
 
-    values[match[1]] = match[2].trim();
+    fields[match[1]] = match[2].trim();
   }
 
-  if (Object.keys(values).length === 0) {
+  if (Object.keys(fields).length === 0) {
     return undefined;
   }
 
-  return values as unknown as AgentReviewEvidenceContract;
+  return fields as unknown as AgentReviewEvidenceContract;
 }
 
-function materializeEvidenceSection(
+function buildEvidenceSection(
   pending: PendingEvidenceSection,
   lines: readonly string[],
-  endLineExclusive: number
+  endLineIndex: number
 ): AgentReviewEvidenceSection {
-  const content = lines.slice(pending.heading_line_index + 1, endLineExclusive).join("\n").trim();
-
+  const contentLines = lines.slice(pending.heading_line_index + 1, endLineIndex + 1);
   return {
     heading: pending.heading,
     level: pending.level,
-    content,
+    content: contentLines.join("\n").trim(),
     start_line: pending.start_line,
-    end_line: Math.max(pending.start_line, endLineExclusive)
+    end_line: endLineIndex + 1
   };
 }
 
 function parseMarkdownHeading(line: string): MarkdownHeading | undefined {
-  const match = /^(#{1,6})\s+(.+?)\s*$/.exec(line.trimEnd());
+  const match = line.match(/^(#{1,6})\s+(.+?)\s*$/);
   if (!match) {
     return undefined;
   }
 
   return {
     level: match[1].length,
-    text: normalizeSectionHeadingText(match[2])
+    text: match[2].trim()
   };
-}
-
-function normalizeSectionHeadingText(value: string): string {
-  return value.replace(/\s+#+\s*$/, "").trim();
-}
-
-function normalizeSectionHeading(value: string): string {
-  return normalizeSectionHeadingText(value).toLowerCase();
 }
