@@ -15,7 +15,7 @@ Evidence contract fields:
 mode: CONTRACT_ONLY
 candidate_id: PR_54_AGENT_WORKFLOW_CLI_REPORT
 decision: AGENT_WORKFLOW_CLI_REPORT
-reason: Adds agent workflow visibility to the validator CLI report without CI enforcement, runtime MCP behavior, package extraction, or adapter mapping changes.
+reason: Adds agent workflow visibility to the Agent Review validator CLI report without CI enforcement, runtime MCP behavior, package extraction, or adapter mapping changes.
 is_runtime_change: false
 is_security_runtime_change: false
 child_mcp_forwarding_changed: false
@@ -24,7 +24,7 @@ approval_behavior_changed: false
 audit_schema_changed: false
 trace_behavior_changed: false
 scanner_behavior_changed: false
-cli_behavior_changed: true
+cli_behavior_changed: false
 config_adapter_behavior_changed: false
 release_behavior_changed: false
 ci_behavior_changed: false
@@ -32,7 +32,7 @@ source: docs/agent_reviews/pr_54_agent_workflow_cli_report.md
 
 ## Grill Me Review
 
-This PR is CLI report only. It must not become PR #55 CI enforcement.
+This PR is Agent Review validator CLI report only. It must not become PR #55 CI enforcement.
 
 Required proof:
 
@@ -46,7 +46,7 @@ Required proof:
 
 ## Hermes Review
 
-The CLI report now includes:
+The Agent Review validator CLI report now includes:
 
 - `required_review_agents`
 - `satisfied_review_agents`
@@ -69,6 +69,7 @@ Confirmed not touched:
 - approval runtime
 - audit runtime
 - scanner runtime
+- MCP product CLI runtime
 - CI workflow
 - release flow
 - package metadata
@@ -96,6 +97,7 @@ Touched intentionally:
 
 - Scope Lock Agent: PASS
 - Repo Cartographer Agent: PASS
+- Docs / Runbook Agent: PASS
 - QA Failure Agent: PASS
 - GSD Reviewer: PASS
 
