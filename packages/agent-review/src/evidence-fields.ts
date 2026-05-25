@@ -3,7 +3,7 @@ import type {
   AgentReviewEvidenceContract,
   AgentReviewEvidenceDocument,
   AgentReviewValidationIssue
-} from "./index";
+} from "./index.js";
 
 const BOOLEAN_STRING_FIELD_NAMES = [
   "is_runtime_change",

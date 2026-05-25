@@ -3,9 +3,9 @@ import type {
   AgentReviewEvidenceDocument,
   AgentReviewModeRule,
   AgentReviewValidationIssue
-} from "./index";
-import { getAgentReviewEvidenceFieldValue } from "./evidence-fields";
-import { findAgentReviewEvidenceSection } from "./required-sections";
+} from "./index.js";
+import { getAgentReviewEvidenceFieldValue } from "./evidence-fields.js";
+import { findAgentReviewEvidenceSection } from "./required-sections.js";
 
 const RUNTIME_CHANGE_FIELD_NAMES = [
   "is_runtime_change",

@@ -2,8 +2,8 @@ import type {
   AgentReviewAreaClassification,
   AgentReviewEvidenceDocument,
   AgentReviewValidationIssue
-} from "./index";
-import { findAgentReviewEvidenceSection } from "./required-sections";
+} from "./index.js";
+import { findAgentReviewEvidenceSection } from "./required-sections.js";
 
 export interface AgentReviewAreaSectionValidationInput {
   readonly evidence: AgentReviewEvidenceDocument;

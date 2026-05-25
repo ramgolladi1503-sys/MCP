@@ -1,23 +1,23 @@
 import { isAbsolute, join } from "node:path";
 
-import type { AgentReviewAreaSectionValidationResult } from "./area-sections";
-import { validateAgentReviewAreaSections } from "./area-sections";
-import type { AgentReviewChangedFileClassificationResult } from "./changed-files";
-import { classifyAgentReviewChangedFilesWithSummary } from "./changed-files";
-import type { AgentReviewEvidenceFieldValidationResult } from "./evidence-fields";
-import { validateAgentReviewEvidenceFields } from "./evidence-fields";
-import { loadAgentReviewEvidenceDocument } from "./evidence-markdown";
+import type { AgentReviewAreaSectionValidationResult } from "./area-sections.js";
+import { validateAgentReviewAreaSections } from "./area-sections.js";
+import type { AgentReviewChangedFileClassificationResult } from "./changed-files.js";
+import { classifyAgentReviewChangedFilesWithSummary } from "./changed-files.js";
+import type { AgentReviewEvidenceFieldValidationResult } from "./evidence-fields.js";
+import { validateAgentReviewEvidenceFields } from "./evidence-fields.js";
+import { loadAgentReviewEvidenceDocument } from "./evidence-markdown.js";
 import type {
   AgentReviewChangedFile,
   AgentReviewValidationIssue
-} from "./index";
-import { loadAgentReviewConfig } from "./index";
-import type { AgentReviewModeRuleValidationResult } from "./mode-rules";
-import { validateAgentReviewModeRules } from "./mode-rules";
-import type { AgentReviewRequiredProofResolutionResult } from "./required-proof";
-import { resolveAgentReviewRequiredProof } from "./required-proof";
-import type { AgentReviewRequiredSectionValidationResult } from "./required-sections";
-import { validateAgentReviewRequiredSections } from "./required-sections";
+} from "./index.js";
+import { loadAgentReviewConfig } from "./index.js";
+import type { AgentReviewModeRuleValidationResult } from "./mode-rules.js";
+import { validateAgentReviewModeRules } from "./mode-rules.js";
+import type { AgentReviewRequiredProofResolutionResult } from "./required-proof.js";
+import { resolveAgentReviewRequiredProof } from "./required-proof.js";
+import type { AgentReviewRequiredSectionValidationResult } from "./required-sections.js";
+import { validateAgentReviewRequiredSections } from "./required-sections.js";
 
 export const AGENT_REVIEW_VALIDATOR_CLI_SCHEMA_VERSION = "agent_review.validator_cli.v1" as const;
 
