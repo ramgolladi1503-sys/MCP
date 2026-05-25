@@ -120,6 +120,7 @@ Confirmed not touched:
 - `docs/agent_reviews/pr_42_agent_review_kit_product_roadmap_lock.md` exists.
 - This PR has exactly one Agent Review evidence file for the real GitHub PR number.
 - The branch is based on current main and contains only docs-only roadmap lock changes.
+- no runtime claims: this PR is documentation-only and makes no runtime behavior claim for MCP gateway, policy, scanner, audit, approval, CLI execution, package publishing, or CI behavior.
 - scope is explicit: this PR is docs-only and does not implement parser, validator, classifier, resolver, command, workflow, package, or runtime behavior.
 - future runtime proof stated if relevant: none is required for PR #42 because it is docs-only; future implementation PRs must provide their own behavior-specific proof.
 - package or tarball proof: not applicable because this PR does not alter package metadata, build output, release scripts, tarball contents, or publish behavior.
