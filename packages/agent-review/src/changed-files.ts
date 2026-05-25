@@ -3,7 +3,7 @@ import type {
   AgentReviewAreaRule,
   AgentReviewChangedFile,
   AgentReviewConfig
-} from "./index";
+} from "./index.js";
 
 export interface AgentReviewChangedFileClassificationResult {
   readonly detected_areas: readonly AgentReviewAreaClassification[];
